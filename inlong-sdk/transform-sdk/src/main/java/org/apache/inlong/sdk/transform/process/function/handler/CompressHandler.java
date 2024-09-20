@@ -15,18 +15,9 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.sdk.transform.process.function.temporal;
+package org.apache.inlong.sdk.transform.process.function.handler;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-/**
- * TestTemporalFunctionProcessor
- * description: test all the temporal functions in transform processor
- */
-@RunWith(Suite.class)
-@Suite.SuiteClasses({TestDateDiffFunction.class, TestDateExtractFunction.class, TestDateFormatFunction.class,
-        TestFromUnixTimeFunction.class, TestLocalDateFunction.class, TestLocalTimeFunction.class,
-        TestTimestampAdd.class, TestTimestampExtractFunction.class, TestToDateFunction.class,
-        TestToTimestampFunction.class, TestUnixTimestampFunction.class})
-public class TestTemporalFunctionsProcessor {
+public interface CompressHandler {
+
+    byte[] compress(byte[] data) throws Exception;
 }

@@ -15,17 +15,28 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.sdk.transform.process.operator;
+package org.apache.inlong.agent.plugin.sources.file.extend;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-/**
- * TestOperatorsProcessor
- * description: test all the operator transform processor
- */
-@RunWith(Suite.class)
-@Suite.SuiteClasses({TestAndOperator.class, TestEqualsToOperator.class, TestGreaterThanEqualsOperator.class,
-        TestGreaterThanOperator.class, TestMinorThanEqualsOperator.class, TestMinorThanOperator.class,
-        TestNotEqualsToOperator.class, TestNotOperator.class, TestOrOperator.class})
-public class TestOperatorsProcessor {
+import org.apache.inlong.agent.conf.InstanceProfile;
+import org.apache.inlong.agent.plugin.Message;
+
+import java.util.Map;
+
+public class DefaultExtendedHandler extends ExtendedHandler {
+
+    public DefaultExtendedHandler(InstanceProfile profile) {
+        super(profile);
+    }
+
+    // Modify the header by the body
+    public void dealWithHeader(Map<String, String> header, byte[] body) {
+    }
+
+    public boolean filterMessage(Message msg) {
+        return true;
+    }
+
+    public static class Constants {
+
+    }
 }

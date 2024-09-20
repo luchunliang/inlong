@@ -15,16 +15,24 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.sdk.transform.process.parser;
+package org.apache.inlong.sdk.transform.process.function.handler;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-/**
- * TestOperatorsProcessor
- * description: test all the parser transform processor
- */
-@RunWith(Suite.class)
-@Suite.SuiteClasses({TestBitwiseAndParser.class, TestBitwiseInversionParser.class, TestBitwiseLeftShiftParser.class,
-        TestBitwiseOrParser.class, TestBitwiseRightShiftParser.class, TestBitwiseXorParser.class})
-public class TestParsersProcessor {
+import java.io.ByteArrayOutputStream;
+import java.util.zip.Inflater;
+
+public class DeflaterUncompress implements UncompressHandler {
+
+    @Override
+    public byte[] uncompress(byte[] data) throws Exception {
+        Inflater inflater = new Inflater();
+        inflater.setInput(data);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(data.length);
+        byte[] buffer = new byte[1024];
+        while (!inflater.finished()) {
+            int count = inflater.inflate(buffer);
+            outputStream.write(buffer, 0, count);
+        }
+        outputStream.close();
+        return outputStream.toByteArray();
+    }
 }

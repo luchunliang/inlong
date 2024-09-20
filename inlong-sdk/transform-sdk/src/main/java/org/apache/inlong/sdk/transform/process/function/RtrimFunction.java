@@ -22,51 +22,36 @@ import org.apache.inlong.sdk.transform.process.Context;
 import org.apache.inlong.sdk.transform.process.operator.OperatorTools;
 import org.apache.inlong.sdk.transform.process.parser.ValueParser;
 
-import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 
-import java.util.List;
 /**
- * ReplicateFunction
- * description: replicate(string, numeric)--Repeat the string numeric times and return a new string
+ * TrimFunction
+ * description: rtrim(string)
+ * - Return NULL if str is NULL.
+ * - Return the string str with trailing space characters removed.
  */
-@TransformFunction(names = {"replicate"})
-public class ReplicateFunction implements ValueParser {
+@TransformFunction(names = {"rtrim"})
+public class RtrimFunction implements ValueParser {
 
     private ValueParser stringParser;
 
-    private ValueParser countParser;
-
-    public ReplicateFunction(Function expr) {
-        List<Expression> expressions = expr.getParameters().getExpressions();
-        stringParser = OperatorTools.buildParser(expressions.get(0));
-        countParser = OperatorTools.buildParser(expressions.get(1));
+    public RtrimFunction(Function expr) {
+        stringParser = OperatorTools.buildParser(expr.getParameters().getExpressions().get(0));
     }
 
     @Override
     public Object parse(SourceData sourceData, int rowIndex, Context context) {
         Object stringObj = stringParser.parse(sourceData, rowIndex, context);
-        Object countObj = countParser.parse(sourceData, rowIndex, context);
+        if (stringObj == null) {
+            return null;
+        }
         String str = OperatorTools.parseString(stringObj);
-        double count = OperatorTools.parseBigDecimal(countObj).doubleValue();
-        return repeat(str, count);
-    }
-    private String repeat(String str, double count) {
-        if (count == 0) {
-            return "";
-        }
-        if (count == 1) {
-            return str;
-        }
-        StringBuilder repeatedStr = new StringBuilder();
-        StringBuilder originStr = new StringBuilder(str);
-        while (count > 0) {
-            if (count % 2 != 0) {
-                repeatedStr.append(originStr);
+        int len = str.length();
+        for (int i = len - 1; i >= 0; i--) {
+            if (str.charAt(i) != ' ') {
+                return str.substring(0, i + 1);
             }
-            count = Math.floor(count / 2);
-            originStr.append(originStr);
         }
-        return repeatedStr.toString();
+        return "";
     }
 }

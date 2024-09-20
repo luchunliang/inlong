@@ -15,16 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.sdk.transform.process.processor;
+package org.apache.inlong.sdk.transform.process.function.handler;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-/**
- * TestTransformProcessors
- * description: test all the transform processors case
- */
-@RunWith(Suite.class)
-@Suite.SuiteClasses({TestCsv2KvProcessor.class, TestCsv2StarProcessor.class, TestJson2CsvProcessor.class,
-        TestKv2CsvProcessor.class, TestKv2CsvProcessor.class, TestKv2StarProcessor.class, TestPb2CsvProcessor.class})
-public class TestTransformProcessors {
+import java.io.ByteArrayOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+public class ZipCompress implements CompressHandler {
+
+    @Override
+    public byte[] compress(byte[] data) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ZipOutputStream zipOutputStream = new ZipOutputStream(baos);
+        ZipEntry entry = new ZipEntry("");
+        zipOutputStream.putNextEntry(entry);
+        zipOutputStream.write(data);
+        zipOutputStream.closeEntry();
+        zipOutputStream.close();
+        return baos.toByteArray();
+    }
 }

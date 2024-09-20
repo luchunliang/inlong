@@ -20,7 +20,6 @@ package org.apache.inlong.sdk.transform.process;
 import org.apache.inlong.sdk.transform.decode.SourceData;
 import org.apache.inlong.sdk.transform.decode.SourceDecoder;
 import org.apache.inlong.sdk.transform.encode.DefaultSinkData;
-import org.apache.inlong.sdk.transform.encode.SinkData;
 import org.apache.inlong.sdk.transform.encode.SinkEncoder;
 import org.apache.inlong.sdk.transform.pojo.FieldInfo;
 import org.apache.inlong.sdk.transform.pojo.TransformConfig;
@@ -54,6 +53,7 @@ public class TransformProcessor<I, O> {
     private static final Logger LOG = LoggerFactory.getLogger(TransformProcessor.class);
 
     private static final Map<String, Object> EMPTY_EXT_PARAMS = ImmutableMap.of();
+    private static final String DUMMY_SELECT = "select *";
 
     private final TransformConfig config;
     private final SourceDecoder<I> decoder;
@@ -63,7 +63,7 @@ public class TransformProcessor<I, O> {
     private ExpressionOperator where;
     private List<ValueParserNode> selectItems;
 
-    private boolean includeAllSourceFields = false;
+    private List<String> sinkFieldList;
 
     public static <I, O> TransformProcessor<I, O> create(
             TransformConfig config,
@@ -84,12 +84,22 @@ public class TransformProcessor<I, O> {
     }
 
     private void init() throws JSQLParserException {
-        this.initTransformSql();
+        if (!config.isStrictOrder() && encoder != null && encoder.getFields() != null) {
+            List<FieldInfo> fields = encoder.getFields();
+            this.sinkFieldList = new ArrayList<>(fields.size());
+            fields.forEach(v -> this.sinkFieldList.add(v.getName()));
+        }
+
+        if (StringUtils.isNotEmpty(config.getTransformSql())) {
+            this.initTransformSql(config.getTransformSql());
+        } else {
+            this.initTransformSql(DUMMY_SELECT);
+        }
     }
 
-    private void initTransformSql() throws JSQLParserException {
+    private void initTransformSql(String sql) throws JSQLParserException {
         CCJSqlParserManager parserManager = new CCJSqlParserManager();
-        Select select = (Select) parserManager.parse(new StringReader(config.getTransformSql()));
+        Select select = (Select) parserManager.parse(new StringReader(sql));
         this.transformSelect = (PlainSelect) select.getSelectBody();
         this.where = OperatorTools.buildOperator(this.transformSelect.getWhere());
         List<SelectItem> items = this.transformSelect.getSelectItems();
@@ -98,7 +108,7 @@ public class TransformProcessor<I, O> {
         for (int i = 0; i < items.size(); i++) {
             SelectItem item = items.get(i);
             String fieldName = null;
-            if (i < fields.size()) {
+            if (config.isStrictOrder() && i < fields.size()) {
                 fieldName = fields.get(i).getName();
             }
             if (item instanceof SelectExpressionItem) {
@@ -109,6 +119,10 @@ public class TransformProcessor<I, O> {
                     } else {
                         fieldName = exprItem.getAlias().getName();
                     }
+                    if (!this.checkSelectField(fieldName)) {
+                        throw new JSQLParserException(
+                                String.format("Field name:%s can not be found in sink field list.", fieldName));
+                    }
                 }
                 this.selectItems
                         .add(new ValueParserNode(fieldName, OperatorTools.buildParser(exprItem.getExpression())));
@@ -118,6 +132,13 @@ public class TransformProcessor<I, O> {
                 this.selectItems.add(new ValueParserNode(fieldName, null));
             }
         }
+    }
+
+    public boolean checkSelectField(String fieldName) {
+        if (config.isIgnoreConfigError()) {
+            return true;
+        }
+        return this.sinkFieldList != null && this.sinkFieldList.contains(fieldName);
     }
 
     public List<O> transform(I input) {
@@ -142,11 +163,11 @@ public class TransformProcessor<I, O> {
             }
 
             // parse value
-            SinkData sinkData = new DefaultSinkData();
+            DefaultSinkData sinkData = new DefaultSinkData();
             for (ValueParserNode node : this.selectItems) {
                 String fieldName = node.getFieldName();
                 ValueParser parser = node.getParser();
-                if (parser == null && StringUtils.equals(fieldName, SinkEncoder.ALL_SOURCE_FIELD_SIGN)) {
+                if (parser == null || StringUtils.equals(fieldName, SinkEncoder.ALL_SOURCE_FIELD_SIGN)) {
                     if (input instanceof String) {
                         sinkData.addField(fieldName, (String) input);
                     } else {
@@ -156,13 +177,19 @@ public class TransformProcessor<I, O> {
                 }
                 try {
                     Object fieldValue = parser.parse(sourceData, i, context);
-                    sinkData.addField(fieldName, String.valueOf(fieldValue));
+                    if (fieldValue == null) {
+                        sinkData.addField(fieldName, "");
+                    } else {
+                        sinkData.addField(fieldName, fieldValue.toString());
+                    }
                 } catch (Throwable t) {
-                    LOG.error(t.getMessage(), t);
                     sinkData.addField(fieldName, "");
                 }
             }
 
+            if (this.sinkFieldList != null) {
+                sinkData.setKeyList(this.sinkFieldList);
+            }
             // encode
             sinkDatas.add(this.encoder.encode(sinkData, context));
         }
