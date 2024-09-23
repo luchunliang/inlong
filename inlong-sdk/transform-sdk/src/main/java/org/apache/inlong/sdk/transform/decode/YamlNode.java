@@ -15,45 +15,21 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.common.enums;
+package org.apache.inlong.sdk.transform.decode;
 
-import org.apache.inlong.manager.common.exceptions.WorkflowException;
+import lombok.Data;
 
-/**
- * Status enum of cluster node
- */
-public enum NodeStatus {
+@Data
+public class YamlNode {
 
-    NORMAL(1),
+    private String name;
+    private Object value;
 
-    HEARTBEAT_TIMEOUT(2),
-
-    INSTALLING(3),
-
-    INSTALL_FAILED(4),
-
-    INSTALL_SUCCESS(5),
-
-    UNLOAD_FAILED(6);
-
-    int status;
-
-    NodeStatus(int status) {
-        this.status = status;
+    public YamlNode() {
     }
 
-    public int getStatus() {
-        return status;
-    }
-
-    public static NodeStatus fromStatus(int status) {
-        switch (status) {
-            case 1:
-                return NORMAL;
-            case 2:
-                return HEARTBEAT_TIMEOUT;
-            default:
-                throw new WorkflowException("unknown status: " + status);
-        }
+    public YamlNode(String name, Object value) {
+        this.name = name;
+        this.value = value;
     }
 }
