@@ -27,5 +27,14 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target(TYPE)
 public @interface TransformFunction {
 
+    String type();
+
     String[] names();
+
+    String parameter() default "";
+
+    String[] descriptions() default {};
+
+    String[] examples() default {};
+
 }

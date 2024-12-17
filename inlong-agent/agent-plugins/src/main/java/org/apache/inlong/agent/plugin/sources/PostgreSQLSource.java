@@ -23,6 +23,7 @@ import org.apache.inlong.agent.conf.InstanceProfile;
 import org.apache.inlong.agent.constant.AgentConstants;
 import org.apache.inlong.agent.constant.TaskConstants;
 import org.apache.inlong.agent.except.FileException;
+import org.apache.inlong.agent.plugin.sources.extend.DefaultExtendedHandler;
 import org.apache.inlong.agent.plugin.sources.file.AbstractSource;
 
 import io.debezium.connector.postgresql.PostgresConnector;
@@ -72,6 +73,11 @@ public class PostgreSQLSource extends AbstractSource {
 
     public PostgreSQLSource() {
 
+    }
+
+    @Override
+    protected void initExtendClass() {
+        extendClass = DefaultExtendedHandler.class.getCanonicalName();
     }
 
     @Override

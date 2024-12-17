@@ -33,7 +33,7 @@ const { I18nMap, I18n } = DataWithBackend;
 const { FieldList, FieldDecorator } = RenderRow;
 const { ColumnList, ColumnDecorator } = RenderList;
 
-const format = 'HH:mm';
+export const format = 'HH:mm';
 const conventionalTimeFormat = 'YYYY-MM-DD HH:mm';
 
 export class SyncDefaultInfo implements DataWithBackend, RenderRow, RenderList {
@@ -73,7 +73,7 @@ export class SyncDefaultInfo implements DataWithBackend, RenderRow, RenderList {
   })
   @ColumnDecorator()
   @I18n('meta.Synchronize.GroupOwners')
-  inCharges: string;
+  inCharges: string[];
 
   @FieldDecorator({
     type: 'radio',
@@ -120,20 +120,48 @@ export class SyncDefaultInfo implements DataWithBackend, RenderRow, RenderList {
 
   @FieldDecorator({
     type: 'radio',
-    initialValue: 0,
+    initialValue: 'Quartz',
     visible: values => values.inlongGroupMode === 2,
     rules: [{ required: true }],
     props: {
       options: [
         {
-          label: i18n.t('meta.Synchronize.Conventional'),
-          value: 0,
+          label: i18n.t('meta.Synchronize.ScheduleQuartz'),
+          value: 'Quartz',
         },
         {
-          label: i18n.t('meta.Synchronize.Crontab'),
-          value: 1,
+          label: i18n.t('meta.Synchronize.ScheduleAirflow'),
+          value: 'Airflow',
+        },
+        {
+          label: i18n.t('meta.Synchronize.DolphinScheduler'),
+          value: 'DolphinScheduler',
         },
       ],
+    },
+  })
+  @I18n('meta.Synchronize.ScheduleEngine')
+  scheduleEngine: string;
+
+  @FieldDecorator({
+    type: 'radio',
+    initialValue: 0,
+    visible: values => values.inlongGroupMode === 2,
+
+    rules: [{ required: true }],
+    props: values => {
+      return {
+        options: [
+          {
+            label: i18n.t('meta.Synchronize.Conventional'),
+            value: 0,
+          },
+          {
+            label: i18n.t('meta.Synchronize.Crontab'),
+            value: 1,
+          },
+        ],
+      };
     },
   })
   @I18n('meta.Synchronize.ScheduleType')

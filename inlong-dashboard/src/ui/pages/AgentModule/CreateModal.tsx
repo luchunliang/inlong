@@ -91,6 +91,10 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
         type: 'textarea',
         label: i18n.t('pages.ModuleAgent.Config.CheckCommand'),
         name: 'checkCommand',
+        initialValue:
+          type === 'INSTALLER'
+            ? 'echo "installer"'
+            : "ps aux | grep core.AgentMain | grep java | grep -v grep | awk '{print $2}'",
         props: {
           showCount: true,
           maxLength: 1000,
@@ -100,6 +104,10 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
         type: 'textarea',
         label: i18n.t('pages.ModuleAgent.Config.InstallCommand'),
         name: 'installCommand',
+        initialValue:
+          type === 'INSTALLER'
+            ? 'echo ""'
+            : 'cd ~/inlong/inlong-agent/bin;sh agent.sh stop;rm -rf ~/inlong/inlong-agent-temp;mkdir -p ~/inlong/inlong-agent-temp;cp -r ~/inlong/inlong-agent/.localdb ',
         props: {
           showCount: true,
           maxLength: 1000,
@@ -109,6 +117,8 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
         type: 'textarea',
         label: i18n.t('pages.ModuleAgent.Config.StartCommand'),
         name: 'startCommand',
+        initialValue:
+          type === 'INSTALLER' ? 'echo ""' : 'cd ~/inlong/inlong-agent/bin;sh agent.sh start',
         props: {
           showCount: true,
           maxLength: 1000,
@@ -118,6 +128,8 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
         type: 'textarea',
         label: i18n.t('pages.ModuleAgent.Config.StopCommand'),
         name: 'stopCommand',
+        initialValue:
+          type === 'INSTALLER' ? 'echo ""' : 'cd ~/inlong/inlong-agent/bin;sh agent.sh stop',
         props: {
           showCount: true,
           maxLength: 1000,
@@ -127,6 +139,7 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
         type: 'textarea',
         label: i18n.t('pages.ModuleAgent.Config.UninstallCommand'),
         name: 'uninstallCommand',
+        initialValue: type === 'INSTALLER' ? 'echo ""' : 'echo empty uninstall  cmd',
         props: {
           showCount: true,
           maxLength: 1000,
@@ -142,12 +155,7 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
     {
       manual: true,
       onSuccess: result => {
-        if (isCreate) {
-          form.resetFields();
-          form.setFieldsValue({ ...result, name: '', version: '', packageId: '' });
-        } else {
-          form.setFieldsValue(result);
-        }
+        form.setFieldsValue(result);
       },
     },
   );
@@ -177,7 +185,6 @@ const Comp: React.FC<Props> = ({ id, type, ...modalProps }) => {
       } else {
         setCreate(true);
         // here need a data which id is 1 to init create form
-        getData(1);
       }
     } else {
       form.resetFields();

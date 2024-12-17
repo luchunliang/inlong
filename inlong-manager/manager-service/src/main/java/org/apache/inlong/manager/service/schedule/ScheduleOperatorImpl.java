@@ -59,8 +59,6 @@ public class ScheduleOperatorImpl implements ScheduleOperator {
 
     private OfflineJobOperator offlineJobOperator;
 
-    private ScheduleEngineClient scheduleEngineClient;
-
     @Override
     @Transactional(rollbackFor = Throwable.class)
     public int saveOpt(ScheduleInfoRequest request, String operator) {
@@ -88,11 +86,8 @@ public class ScheduleOperatorImpl implements ScheduleOperator {
         }
     }
 
-    private ScheduleEngineClient getScheduleEngineClient() {
-        if (scheduleEngineClient == null) {
-            scheduleEngineClient = scheduleClientFactory.getInstance();
-        }
-        return scheduleEngineClient;
+    private ScheduleEngineClient getScheduleEngineClient(String scheduleEngine) {
+        return scheduleClientFactory.getInstance(scheduleEngine);
     }
 
     @Override
@@ -143,8 +138,8 @@ public class ScheduleOperatorImpl implements ScheduleOperator {
      * */
     private Boolean registerToScheduleEngine(ScheduleInfo scheduleInfo, String operator, boolean isUpdate) {
         // update(un-register and then register) or register
-        boolean res = isUpdate ? getScheduleEngineClient().update(scheduleInfo)
-                : getScheduleEngineClient().register(scheduleInfo);
+        boolean res = isUpdate ? getScheduleEngineClient(scheduleInfo.getScheduleEngine()).update(scheduleInfo)
+                : getScheduleEngineClient(scheduleInfo.getScheduleEngine()).register(scheduleInfo);
         // update status to REGISTERED
         scheduleService.updateStatus(scheduleInfo.getInlongGroupId(), REGISTERED, operator);
         LOGGER.info("{} schedule info success for group {}",

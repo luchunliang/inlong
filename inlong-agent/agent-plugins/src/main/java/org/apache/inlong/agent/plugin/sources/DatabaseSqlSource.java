@@ -19,6 +19,7 @@ package org.apache.inlong.agent.plugin.sources;
 
 import org.apache.inlong.agent.conf.InstanceProfile;
 import org.apache.inlong.agent.plugin.Message;
+import org.apache.inlong.agent.plugin.sources.extend.DefaultExtendedHandler;
 import org.apache.inlong.agent.plugin.sources.file.AbstractSource;
 
 import org.slf4j.Logger;
@@ -42,6 +43,11 @@ public class DatabaseSqlSource extends AbstractSource {
     @Override
     protected String getThreadName() {
         return null;
+    }
+
+    @Override
+    protected void initExtendClass() {
+        extendClass = DefaultExtendedHandler.class.getCanonicalName();
     }
 
     @Override

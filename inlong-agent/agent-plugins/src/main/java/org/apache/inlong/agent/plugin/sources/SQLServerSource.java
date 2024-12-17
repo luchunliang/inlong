@@ -24,6 +24,7 @@ import org.apache.inlong.agent.constant.AgentConstants;
 import org.apache.inlong.agent.constant.SqlServerConstants;
 import org.apache.inlong.agent.constant.TaskConstants;
 import org.apache.inlong.agent.except.FileException;
+import org.apache.inlong.agent.plugin.sources.extend.DefaultExtendedHandler;
 import org.apache.inlong.agent.plugin.sources.file.AbstractSource;
 
 import io.debezium.connector.sqlserver.SqlServerConnector;
@@ -63,6 +64,11 @@ public class SQLServerSource extends AbstractSource {
     private String tableName;
 
     public SQLServerSource() {
+    }
+
+    @Override
+    protected void initExtendClass() {
+        extendClass = DefaultExtendedHandler.class.getCanonicalName();
     }
 
     protected void initSource(InstanceProfile profile) {

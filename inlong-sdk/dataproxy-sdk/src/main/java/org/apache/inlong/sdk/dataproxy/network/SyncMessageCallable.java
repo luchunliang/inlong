@@ -19,6 +19,7 @@ package org.apache.inlong.sdk.dataproxy.network;
 
 import org.apache.inlong.sdk.dataproxy.codec.EncodeObject;
 import org.apache.inlong.sdk.dataproxy.common.SendResult;
+import org.apache.inlong.sdk.dataproxy.utils.LogCounter;
 
 import io.netty.channel.ChannelFuture;
 import org.slf4j.Logger;
@@ -30,23 +31,20 @@ import java.util.concurrent.TimeUnit;
 
 public class SyncMessageCallable implements Callable<SendResult> {
 
-    private static final Logger logger = LoggerFactory
-            .getLogger(SyncMessageCallable.class);
+    private static final Logger logger = LoggerFactory.getLogger(SyncMessageCallable.class);
+    private static final LogCounter exptCnt = new LogCounter(10, 100000, 60 * 1000L);
 
     private final NettyClient client;
     private final CountDownLatch awaitLatch = new CountDownLatch(1);
     private final EncodeObject encodeObject;
-    private final long timeout;
-    private final TimeUnit timeUnit;
+    private final long timeoutMs;
 
     private SendResult message;
 
-    public SyncMessageCallable(NettyClient client, EncodeObject encodeObject,
-            long timeout, TimeUnit timeUnit) {
+    public SyncMessageCallable(NettyClient client, EncodeObject encodeObject, long timeoutMs) {
         this.client = client;
         this.encodeObject = encodeObject;
-        this.timeout = timeout;
-        this.timeUnit = timeUnit;
+        this.timeoutMs = timeoutMs;
     }
 
     public void update(SendResult message) {
@@ -55,13 +53,16 @@ public class SyncMessageCallable implements Callable<SendResult> {
     }
 
     public SendResult call() throws Exception {
-        // TODO Auto-generated method stub
         try {
+            if (!client.getChannel().isWritable()) {
+                return SendResult.WRITE_OVER_WATERMARK;
+            }
             ChannelFuture channelFuture = client.write(encodeObject);
-            awaitLatch.await(timeout, timeUnit);
-        } catch (Exception e) {
-            logger.error("SendResult call", e);
-            e.printStackTrace();
+            awaitLatch.await(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (Throwable ex) {
+            if (exptCnt.shouldPrint()) {
+                logger.warn("SyncMessageCallable write data throw exception", ex);
+            }
             return SendResult.UNKOWN_ERROR;
         }
         return message;

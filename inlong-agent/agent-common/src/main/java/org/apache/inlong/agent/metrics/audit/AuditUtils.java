@@ -18,10 +18,17 @@
 package org.apache.inlong.agent.metrics.audit;
 
 import org.apache.inlong.agent.conf.AbstractConfiguration;
+import org.apache.inlong.agent.constant.AgentConstants;
 import org.apache.inlong.audit.AuditOperator;
 import org.apache.inlong.audit.entity.AuditComponent;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashSet;
+
 import static org.apache.inlong.agent.constant.AgentConstants.AUDIT_ENABLE;
+import static org.apache.inlong.agent.constant.AgentConstants.AUDIT_PROXY_ADDRESS;
 import static org.apache.inlong.agent.constant.AgentConstants.DEFAULT_AUDIT_ENABLE;
 import static org.apache.inlong.agent.constant.FetcherConstants.AGENT_MANAGER_ADDR;
 import static org.apache.inlong.agent.constant.FetcherConstants.AGENT_MANAGER_AUTH_SECRET_ID;
@@ -34,6 +41,8 @@ import static org.apache.inlong.common.constant.Constants.DEFAULT_AUDIT_VERSION;
  */
 public class AuditUtils {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuditUtils.class);
+    public static final int AGENT_ISOLATE_KEY = 1;
     public static int AUDIT_ID_AGENT_READ_SUCCESS = 3;
     public static int AUDIT_ID_AGENT_SEND_SUCCESS = 4;
     public static int AUDIT_ID_AGENT_READ_FAILED = 524291;
@@ -59,7 +68,6 @@ public class AuditUtils {
     public static int AUDIT_ID_AGENT_ADD_INSTANCE_MEM_FAILED = 1073741842;
     public static int AUDIT_ID_AGENT_DEL_INSTANCE_MEM_UNUSUAL = 1073741843;
     private static boolean IS_AUDIT = true;
-    private static AbstractConfiguration conf;
 
     /**
      * Init audit config
@@ -67,8 +75,15 @@ public class AuditUtils {
     public static void initAudit(AbstractConfiguration conf) {
         IS_AUDIT = conf.getBoolean(AUDIT_ENABLE, DEFAULT_AUDIT_ENABLE);
         if (IS_AUDIT) {
-            AuditOperator.getInstance().setAuditProxy(AuditComponent.AGENT, conf.get(AGENT_MANAGER_ADDR),
-                    conf.get(AGENT_MANAGER_AUTH_SECRET_ID), conf.get(AGENT_MANAGER_AUTH_SECRET_KEY));
+            if (conf.hasKey(AUDIT_PROXY_ADDRESS)) {
+                HashSet<String> address = new HashSet<>();
+                address.add(conf.get(AUDIT_PROXY_ADDRESS));
+                AuditOperator.getInstance().setAuditProxy(address);
+            } else {
+                AuditOperator.getInstance().setAuditProxy(AuditComponent.AGENT, conf.get(AGENT_MANAGER_ADDR),
+                        conf.get(AGENT_MANAGER_AUTH_SECRET_ID), conf.get(AGENT_MANAGER_AUTH_SECRET_KEY));
+            }
+            AuditOperator.getInstance().setLocalIP(conf.get(AgentConstants.AGENT_LOCAL_IP));
         }
     }
 
@@ -80,8 +95,17 @@ public class AuditUtils {
         if (!IS_AUDIT) {
             return;
         }
-        AuditOperator.getInstance()
-                .add(auditID, DEFAULT_AUDIT_TAG, inlongGroupId, inlongStreamId, logTime, count, size, version);
+        if (inlongGroupId == null || inlongStreamId == null) {
+            LOGGER.error("invalid args inlongGroupId: {}, inlongStreamId: {}", inlongGroupId, inlongStreamId);
+            return;
+        }
+        try {
+            AuditOperator.getInstance()
+                    .add(auditID, DEFAULT_AUDIT_TAG, inlongGroupId, inlongStreamId, logTime, count, size, version);
+        } catch (Throwable e) {
+            LOGGER.error("call audit add inlongGroupId: {}, inlongStreamId: {}, auditID {}, error", inlongGroupId,
+                    inlongStreamId, auditID, e);
+        }
     }
 
     public static void add(int auditID, String inlongGroupId, String inlongStreamId,
@@ -96,6 +120,6 @@ public class AuditUtils {
         if (!IS_AUDIT) {
             return;
         }
-        AuditOperator.getInstance().flush();
+        AuditOperator.getInstance().flush(AGENT_ISOLATE_KEY);
     }
 }

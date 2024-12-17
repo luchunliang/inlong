@@ -22,7 +22,9 @@ import org.apache.inlong.sdk.transform.pojo.BsonSourceInfo;
 import org.apache.inlong.sdk.transform.pojo.CsvSourceInfo;
 import org.apache.inlong.sdk.transform.pojo.JsonSourceInfo;
 import org.apache.inlong.sdk.transform.pojo.KvSourceInfo;
+import org.apache.inlong.sdk.transform.pojo.ParquetSourceInfo;
 import org.apache.inlong.sdk.transform.pojo.PbSourceInfo;
+import org.apache.inlong.sdk.transform.pojo.XmlSourceInfo;
 import org.apache.inlong.sdk.transform.pojo.YamlSourceInfo;
 
 public class SourceDecoderFactory {
@@ -39,6 +41,10 @@ public class SourceDecoderFactory {
         return new JsonSourceDecoder(sourceInfo);
     }
 
+    public static XmlSourceDecoder createXmlDecoder(XmlSourceInfo sourceInfo) {
+        return new XmlSourceDecoder(sourceInfo);
+    }
+
     public static PbSourceDecoder createPbDecoder(PbSourceInfo sourceInfo) {
         return new PbSourceDecoder(sourceInfo);
     }
@@ -46,8 +52,13 @@ public class SourceDecoderFactory {
     public static AvroSourceDecoder createAvroDecoder(AvroSourceInfo sourceInfo) {
         return new AvroSourceDecoder(sourceInfo);
     }
+
     public static BsonSourceDecoder createBsonDecoder(BsonSourceInfo sourceInfo) {
         return new BsonSourceDecoder(sourceInfo);
+    }
+
+    public static ParquetSourceDecoder createParquetDecoder(ParquetSourceInfo sourceInfo) {
+        return new ParquetSourceDecoder(sourceInfo);
     }
 
     public static YamlSourceDecoder createYamlDecoder(YamlSourceInfo sourceInfo) {

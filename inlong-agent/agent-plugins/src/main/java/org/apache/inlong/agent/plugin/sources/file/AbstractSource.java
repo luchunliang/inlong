@@ -21,7 +21,6 @@ import org.apache.inlong.agent.common.AgentThreadFactory;
 import org.apache.inlong.agent.conf.InstanceProfile;
 import org.apache.inlong.agent.conf.OffsetProfile;
 import org.apache.inlong.agent.constant.CycleUnitType;
-import org.apache.inlong.agent.constant.TaskConstants;
 import org.apache.inlong.agent.core.task.MemoryManager;
 import org.apache.inlong.agent.core.task.OffsetManager;
 import org.apache.inlong.agent.message.DefaultMessage;
@@ -30,7 +29,7 @@ import org.apache.inlong.agent.metrics.AgentMetricItemSet;
 import org.apache.inlong.agent.metrics.audit.AuditUtils;
 import org.apache.inlong.agent.plugin.Message;
 import org.apache.inlong.agent.plugin.file.Source;
-import org.apache.inlong.agent.plugin.sources.file.extend.ExtendedHandler;
+import org.apache.inlong.agent.plugin.sources.extend.ExtendedHandler;
 import org.apache.inlong.agent.utils.AgentUtils;
 import org.apache.inlong.agent.utils.ThreadUtils;
 import org.apache.inlong.common.metric.MetricRegister;
@@ -38,7 +37,6 @@ import org.apache.inlong.common.metric.MetricRegister;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,13 +53,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.inlong.agent.constant.CommonConstants.DEFAULT_PROXY_PACKAGE_MAX_SIZE;
-import static org.apache.inlong.agent.constant.CommonConstants.PROXY_KEY_DATA;
 import static org.apache.inlong.agent.constant.CommonConstants.PROXY_KEY_STREAM_ID;
 import static org.apache.inlong.agent.constant.CommonConstants.PROXY_PACKAGE_MAX_SIZE;
-import static org.apache.inlong.agent.constant.CommonConstants.PROXY_SEND_PARTITION_KEY;
 import static org.apache.inlong.agent.constant.FetcherConstants.AGENT_GLOBAL_READER_QUEUE_PERMIT;
 import static org.apache.inlong.agent.constant.FetcherConstants.AGENT_GLOBAL_READER_SOURCE_PERMIT;
-import static org.apache.inlong.agent.constant.TaskConstants.DEFAULT_FILE_SOURCE_EXTEND_CLASS;
 import static org.apache.inlong.agent.constant.TaskConstants.OFFSET;
 import static org.apache.inlong.agent.constant.TaskConstants.TASK_AUDIT_VERSION;
 import static org.apache.inlong.agent.constant.TaskConstants.TASK_CYCLE_UNIT;
@@ -85,8 +80,8 @@ public abstract class AbstractSource implements Source {
     protected final Integer BATCH_READ_LINE_COUNT = 10000;
     protected final Integer BATCH_READ_LINE_TOTAL_LEN = 1024 * 1024;
     protected final Integer CACHE_QUEUE_SIZE = 10 * BATCH_READ_LINE_COUNT;
-    protected final Integer READ_WAIT_TIMEOUT_MS = 10;
-    private final Integer EMPTY_CHECK_COUNT_AT_LEAST = 5 * 60;
+    protected final Integer WAIT_TIMEOUT_MS = 10;
+    private final Integer EMPTY_CHECK_COUNT_AT_LEAST = 5 * 60 * 100;
     private final Integer CORE_THREAD_PRINT_INTERVAL_MS = 1000;
     protected BlockingQueue<SourceData> queue;
 
@@ -104,6 +99,7 @@ public abstract class AbstractSource implements Source {
     protected long auditVersion;
     protected String instanceId;
     protected InstanceProfile profile;
+    protected String extendClass;
     private ExtendedHandler extendedHandler;
     protected boolean isRealTime = false;
     protected volatile long emptyCount = 0;
@@ -134,6 +130,8 @@ public abstract class AbstractSource implements Source {
         initExtendHandler();
         initSource(profile);
     }
+
+    protected abstract void initExtendClass();
 
     protected abstract void initSource(InstanceProfile profile);
 
@@ -167,25 +165,23 @@ public abstract class AbstractSource implements Source {
                 break;
             }
             List<SourceData> lines = readFromSource();
-            if (lines != null && lines.isEmpty()) {
+            if (lines == null || lines.isEmpty()) {
                 if (queue.isEmpty()) {
                     emptyCount++;
                 } else {
                     emptyCount = 0;
                 }
                 MemoryManager.getInstance().release(AGENT_GLOBAL_READER_SOURCE_PERMIT, BATCH_READ_LINE_TOTAL_LEN);
-                AgentUtils.silenceSleepInSeconds(1);
+                AgentUtils.silenceSleepInMs(WAIT_TIMEOUT_MS);
                 continue;
             }
             emptyCount = 0;
-            if (lines != null) {
-                for (int i = 0; i < lines.size(); i++) {
-                    boolean suc4Queue = waitForPermit(AGENT_GLOBAL_READER_QUEUE_PERMIT, lines.get(i).getData().length);
-                    if (!suc4Queue) {
-                        break;
-                    }
-                    putIntoQueue(lines.get(i));
+            for (int i = 0; i < lines.size(); i++) {
+                boolean suc4Queue = waitForPermit(AGENT_GLOBAL_READER_QUEUE_PERMIT, lines.get(i).getData().length);
+                if (!suc4Queue) {
+                    break;
                 }
+                putIntoQueue(lines.get(i));
             }
             MemoryManager.getInstance().release(AGENT_GLOBAL_READER_SOURCE_PERMIT, BATCH_READ_LINE_TOTAL_LEN);
             if (AgentUtils.getCurrentTime() - lastPrintTime > CORE_THREAD_PRINT_INTERVAL_MS) {
@@ -233,7 +229,7 @@ public abstract class AbstractSource implements Source {
                 if (!isRunnable()) {
                     return false;
                 }
-                AgentUtils.silenceSleepInSeconds(1);
+                AgentUtils.silenceSleepInMs(WAIT_TIMEOUT_MS);
             }
         }
         return true;
@@ -249,7 +245,7 @@ public abstract class AbstractSource implements Source {
         try {
             boolean offerSuc = false;
             while (isRunnable() && !offerSuc) {
-                offerSuc = queue.offer(sourceData, 1, TimeUnit.SECONDS);
+                offerSuc = queue.offer(sourceData, WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             }
             if (!offerSuc) {
                 MemoryManager.getInstance().release(AGENT_GLOBAL_READER_QUEUE_PERMIT, sourceData.getData().length);
@@ -282,28 +278,26 @@ public abstract class AbstractSource implements Source {
     }
 
     private void initExtendHandler() {
-        if (DEFAULT_FILE_SOURCE_EXTEND_CLASS.compareTo(ExtendedHandler.class.getCanonicalName()) != 0) {
-            Constructor<?> constructor =
-                    null;
-            try {
-                constructor = Class.forName(
-                        profile.get(TaskConstants.FILE_SOURCE_EXTEND_CLASS, DEFAULT_FILE_SOURCE_EXTEND_CLASS))
-                        .getDeclaredConstructor(InstanceProfile.class);
-            } catch (NoSuchMethodException e) {
-                LOGGER.error("init {} NoSuchMethodException error", instanceId, e);
-            } catch (ClassNotFoundException e) {
-                LOGGER.error("init {} ClassNotFoundException error", instanceId, e);
-            }
-            constructor.setAccessible(true);
-            try {
-                extendedHandler = (ExtendedHandler) constructor.newInstance(profile);
-            } catch (InstantiationException e) {
-                LOGGER.error("init {} InstantiationException error", instanceId, e);
-            } catch (IllegalAccessException e) {
-                LOGGER.error("init {} IllegalAccessException error", instanceId, e);
-            } catch (InvocationTargetException e) {
-                LOGGER.error("init {} InvocationTargetException error", instanceId, e);
-            }
+        initExtendClass();
+        Constructor<?> constructor =
+                null;
+        try {
+            constructor = Class.forName(extendClass)
+                    .getDeclaredConstructor(InstanceProfile.class);
+        } catch (NoSuchMethodException e) {
+            LOGGER.error("init {} NoSuchMethodException error", instanceId, e);
+        } catch (ClassNotFoundException e) {
+            LOGGER.error("init {} ClassNotFoundException error", instanceId, e);
+        }
+        constructor.setAccessible(true);
+        try {
+            extendedHandler = (ExtendedHandler) constructor.newInstance(profile);
+        } catch (InstantiationException e) {
+            LOGGER.error("init {} InstantiationException error", instanceId, e);
+        } catch (IllegalAccessException e) {
+            LOGGER.error("init {} IllegalAccessException error", instanceId, e);
+        } catch (InvocationTargetException e) {
+            LOGGER.error("init {} InvocationTargetException error", instanceId, e);
         }
     }
 
@@ -342,7 +336,7 @@ public abstract class AbstractSource implements Source {
     private SourceData readFromQueue() {
         SourceData sourceData = null;
         try {
-            sourceData = queue.poll(READ_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            sourceData = queue.poll(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("poll {} data get interrupted.", instanceId);
         }
@@ -356,9 +350,7 @@ public abstract class AbstractSource implements Source {
     }
 
     private Message createMessage(SourceData sourceData) {
-        String proxyPartitionKey = profile.get(PROXY_SEND_PARTITION_KEY, DigestUtils.md5Hex(inlongGroupId));
         Map<String, String> header = new HashMap<>();
-        header.put(PROXY_KEY_DATA, proxyPartitionKey);
         header.put(OFFSET, sourceData.getOffset());
         header.put(PROXY_KEY_STREAM_ID, inlongStreamId);
         if (extendedHandler != null) {
@@ -411,7 +403,7 @@ public abstract class AbstractSource implements Source {
         while (queue != null && !queue.isEmpty()) {
             SourceData sourceData = null;
             try {
-                sourceData = queue.poll(READ_WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                sourceData = queue.poll(WAIT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 LOGGER.warn("poll {} data get interrupted.", instanceId, e);
             }
@@ -424,6 +416,9 @@ public abstract class AbstractSource implements Source {
 
     @Override
     public boolean sourceFinish() {
+        if (isRealTime) {
+            return false;
+        }
         return emptyCount > EMPTY_CHECK_COUNT_AT_LEAST;
     }
 }

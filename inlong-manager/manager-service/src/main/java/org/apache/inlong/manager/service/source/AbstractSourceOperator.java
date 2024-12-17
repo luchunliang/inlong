@@ -32,8 +32,8 @@ import org.apache.inlong.manager.common.consts.InlongConstants;
 import org.apache.inlong.manager.common.consts.SourceType;
 import org.apache.inlong.manager.common.enums.ClusterType;
 import org.apache.inlong.manager.common.enums.ErrorCodeEnum;
-import org.apache.inlong.manager.common.enums.GroupStatus;
 import org.apache.inlong.manager.common.enums.SourceStatus;
+import org.apache.inlong.manager.common.enums.StreamStatus;
 import org.apache.inlong.manager.common.exceptions.BusinessException;
 import org.apache.inlong.manager.common.util.CommonBeanUtils;
 import org.apache.inlong.manager.common.util.JsonUtils;
@@ -74,6 +74,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -119,6 +120,9 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
     private InlongStreamEntityMapper streamMapper;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private AutowireCapableBeanFactory autowireCapableBeanFactory;
+    private SourceOperatorFactory operatorFactory;
 
     /**
      * Getting the source type.
@@ -142,12 +146,12 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
 
     @Override
     @Transactional(rollbackFor = Throwable.class)
-    public Integer saveOpt(SourceRequest request, Integer groupStatus, String operator) {
+    public Integer saveOpt(SourceRequest request, Integer streamStatus, String operator) {
         StreamSourceEntity entity = CommonBeanUtils.copyProperties(request, StreamSourceEntity::new);
         if (SourceType.AUTO_PUSH.equals(request.getSourceType())) {
             // auto push task needs not be issued to agent
             entity.setStatus(SourceStatus.SOURCE_NORMAL.getCode());
-        } else if (GroupStatus.forCode(groupStatus).equals(GroupStatus.CONFIG_SUCCESSFUL)) {
+        } else if (StreamStatus.forCode(streamStatus).equals(StreamStatus.CONFIG_SUCCESSFUL)) {
             entity.setStatus(SourceStatus.TO_BE_ISSUED_ADD.getCode());
         } else {
             entity.setStatus(SourceStatus.SOURCE_NEW.getCode());
@@ -162,7 +166,7 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
         if (request.getEnableSyncSchema()) {
             syncSourceFieldInfo(request, operator);
         }
-        if (GroupStatus.forCode(groupStatus).equals(GroupStatus.CONFIG_SUCCESSFUL)) {
+        if (StreamStatus.forCode(streamStatus).equals(StreamStatus.CONFIG_SUCCESSFUL)) {
             updateAgentTaskConfig(request, operator);
         }
         return entity.getId();
@@ -184,7 +188,7 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
 
     @Override
     @Transactional(rollbackFor = Throwable.class, isolation = Isolation.REPEATABLE_READ)
-    public void updateOpt(SourceRequest request, Integer groupStatus, Integer groupMode, String operator) {
+    public void updateOpt(SourceRequest request, Integer streamStatus, Integer groupMode, String operator) {
         StreamSourceEntity entity = sourceMapper.selectByIdForUpdate(request.getId());
         if (entity == null) {
             throw new BusinessException(ErrorCodeEnum.SOURCE_INFO_NOT_FOUND,
@@ -238,7 +242,7 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
         if (InlongConstants.STANDARD_MODE.equals(groupMode)) {
             SourceStatus sourceStatus = SourceStatus.forCode(entity.getStatus());
             Integer nextStatus = entity.getStatus();
-            if (GroupStatus.forCode(groupStatus).equals(GroupStatus.CONFIG_SUCCESSFUL)) {
+            if (StreamStatus.forCode(streamStatus).equals(StreamStatus.CONFIG_SUCCESSFUL)) {
                 nextStatus = SourceStatus.TO_BE_ISSUED_RETRY.getCode();
             } else {
                 switch (SourceStatus.forCode(entity.getStatus())) {
@@ -263,7 +267,7 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
         }
         updateFieldOpt(entity, request.getFieldList());
         LOGGER.debug("success to update source of type={}", request.getSourceType());
-        if (GroupStatus.forCode(groupStatus).equals(GroupStatus.CONFIG_SUCCESSFUL)) {
+        if (StreamStatus.forCode(streamStatus).equals(StreamStatus.CONFIG_SUCCESSFUL)) {
             updateAgentTaskConfig(request, operator);
         }
     }
@@ -417,53 +421,17 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
             if (existEntity != null) {
                 agentTaskConfigEntity = CommonBeanUtils.copyProperties(existEntity, AgentTaskConfigEntity::new, true);
             }
-            List<StreamSourceEntity> normalSourceEntities = sourceMapper.selectByStatusAndCluster(
-                    SourceStatus.NORMAL_STATUS_SET.stream().map(SourceStatus::getCode)
-                            .collect(Collectors.toList()),
-                    clusterName, ip, uuid);
-            List<StreamSourceEntity> taskLists = new ArrayList<>(normalSourceEntities);
-            List<StreamSourceEntity> stopSourceEntities = sourceMapper.selectByStatusAndCluster(
-                    SourceStatus.STOP_STATUS_SET.stream().map(SourceStatus::getCode)
-                            .collect(Collectors.toList()),
-                    clusterName, ip, uuid);
-            taskLists.addAll(stopSourceEntities);
-            LOGGER.debug("success to add task : {}", taskLists.size());
-            List<DataConfig> runningTaskConfig = Lists.newArrayList();
-            List<CmdConfig> cmdConfigs = sourceCmdConfigMapper.queryCmdByAgentIp(request.getAgentIp()).stream()
-                    .map(cmd -> {
-                        CmdConfig cmdConfig = new CmdConfig();
-                        cmdConfig.setDataTime(cmd.getSpecifiedDataTime());
-                        cmdConfig.setOp(cmd.getCmdType());
-                        cmdConfig.setId(cmd.getId());
-                        cmdConfig.setTaskId(cmd.getTaskId());
-                        return cmdConfig;
-                    }).collect(Collectors.toList());
-            if (CollectionUtils.isEmpty(taskLists)) {
+
+            LOGGER.debug("begin to get agent config info for {}", request);
+            Set<String> tagSet = new HashSet<>(16);
+            InlongClusterEntity agentClusterInfo = clusterMapper.selectByNameAndType(request.getInlongClusterName(),
+                    ClusterType.AGENT);
+            if (agentClusterInfo == null) {
                 agentTaskConfigEntity.setIsDeleted(agentTaskConfigEntity.getId());
                 agentTaskConfigEntityMapper.updateByIdSelective(agentTaskConfigEntity);
                 return;
             }
-            for (StreamSourceEntity sourceEntity : taskLists) {
-                int op = sourceEntity.getStatus() % MODULUS_100;
-                DataConfig dataConfig = getDataConfig(sourceEntity, op);
-                runningTaskConfig.add(dataConfig);
-            }
-            TaskResult taskResult =
-                    TaskResult.builder().dataConfigs(runningTaskConfig).cmdConfigs(cmdConfigs).build();
-            String md5 = DigestUtils.md5Hex(GSON.toJson(taskResult));
-            taskResult.setMd5(md5);
-            taskResult.setCode(AgentResponseCode.SUCCESS);
-            agentTaskConfigEntity.setAgentIp(request.getAgentIp());
-            agentTaskConfigEntity.setClusterName(request.getInlongClusterName());
-            agentTaskConfigEntity.setTaskParams(objectMapper.writeValueAsString(taskResult));
-
-            LOGGER.debug("begin to get agent config info for {}", request);
-            Set<String> tagSet = new HashSet<>(16);
-            InlongGroupEntity groupEntity =
-                    groupMapper.selectByGroupIdWithoutTenant(request.getInlongGroupId());
-            String clusterTag = groupEntity.getInlongClusterTag();
-            InlongClusterEntity agentClusterInfo = clusterMapper.selectByNameAndType(request.getInlongClusterName(),
-                    ClusterType.AGENT);
+            String clusterTag = agentClusterInfo.getClusterTags();
             AgentConfigInfo agentConfigInfo = AgentConfigInfo.builder()
                     .cluster(AgentConfigInfo.AgentClusterInfo.builder()
                             .parentId(agentClusterInfo.getId())
@@ -488,6 +456,47 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
             agentConfigInfo.setMd5(configMd5);
             agentConfigInfo.setCode(AgentResponseCode.SUCCESS);
             agentTaskConfigEntity.setConfigParams(objectMapper.writeValueAsString(agentConfigInfo));
+
+            List<StreamSourceEntity> normalSourceEntities = sourceMapper.selectByStatusAndCluster(
+                    SourceStatus.NORMAL_STATUS_SET.stream().map(SourceStatus::getCode)
+                            .collect(Collectors.toList()),
+                    clusterName, ip, uuid);
+            List<StreamSourceEntity> taskLists = new ArrayList<>(normalSourceEntities);
+            List<StreamSourceEntity> stopSourceEntities = sourceMapper.selectByStatusAndCluster(
+                    SourceStatus.STOP_STATUS_SET.stream().map(SourceStatus::getCode)
+                            .collect(Collectors.toList()),
+                    clusterName, ip, uuid);
+            taskLists.addAll(stopSourceEntities);
+            LOGGER.debug("success to add task : {}", taskLists.size());
+            List<DataConfig> runningTaskConfig = Lists.newArrayList();
+            List<CmdConfig> cmdConfigs = sourceCmdConfigMapper.queryCmdByAgentIp(request.getAgentIp()).stream()
+                    .map(cmd -> {
+                        CmdConfig cmdConfig = new CmdConfig();
+                        cmdConfig.setDataTime(cmd.getSpecifiedDataTime());
+                        cmdConfig.setOp(cmd.getCmdType());
+                        cmdConfig.setId(cmd.getId());
+                        cmdConfig.setTaskId(cmd.getTaskId());
+                        return cmdConfig;
+                    }).collect(Collectors.toList());
+            if (CollectionUtils.isEmpty(taskLists)) {
+                agentTaskConfigEntity.setTaskParams("");
+                agentTaskConfigEntityMapper.updateByIdSelective(agentTaskConfigEntity);
+                return;
+            }
+            for (StreamSourceEntity sourceEntity : taskLists) {
+                int op = sourceEntity.getStatus() % MODULUS_100;
+                DataConfig dataConfig = getDataConfig(sourceEntity, op);
+                runningTaskConfig.add(dataConfig);
+            }
+            TaskResult taskResult =
+                    TaskResult.builder().dataConfigs(runningTaskConfig).cmdConfigs(cmdConfigs).build();
+            String md5 = DigestUtils.md5Hex(GSON.toJson(taskResult));
+            taskResult.setMd5(md5);
+            taskResult.setCode(AgentResponseCode.SUCCESS);
+            agentTaskConfigEntity.setAgentIp(request.getAgentIp());
+            agentTaskConfigEntity.setClusterName(request.getInlongClusterName());
+            agentTaskConfigEntity.setTaskParams(objectMapper.writeValueAsString(taskResult));
+
             agentClusterInfo.setModifier(operator);
             if (existEntity == null) {
                 agentTaskConfigEntity.setCreator(operator);
@@ -523,7 +532,12 @@ public abstract class AbstractSourceOperator implements StreamSourceOperator {
 
         InlongGroupEntity groupEntity = groupMapper.selectByGroupIdWithoutTenant(groupId);
         InlongStreamEntity streamEntity = streamMapper.selectByIdentifier(groupId, streamId);
-        String extParams = getExtParams(entity);
+        if (operatorFactory == null) {
+            operatorFactory = new SourceOperatorFactory();
+            autowireCapableBeanFactory.autowireBean(operatorFactory);
+        }
+        StreamSourceOperator sourceOperator = operatorFactory.getInstance(entity.getSourceType());
+        String extParams = sourceOperator.getExtParams(entity);
         if (groupEntity != null && streamEntity != null) {
             dataConfig.setState(
                     SourceStatus.NORMAL_STATUS_SET.contains(SourceStatus.forCode(entity.getStatus()))

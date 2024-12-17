@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.util.concurrent.TimeUnit;
 
 public class TcpClientExample {
 
@@ -71,10 +70,11 @@ public class TcpClientExample {
             dataProxyConfig = new ProxyClientConfig(localIP, requestByHttp, inLongManagerAddr,
                     Integer.valueOf(inLongManagerPort), inlongGroupId, "admin", "inlong");
             if (StringUtils.isNotEmpty(configBasePath)) {
-                dataProxyConfig.setConfStoreBasePath(configBasePath);
+                dataProxyConfig.setConfigStoreBasePath(configBasePath);
             }
-            dataProxyConfig.setReadProxyIPFromLocal(isReadProxyIPFromLocal);
+            dataProxyConfig.setOnlyUseLocalProxyConfig(isReadProxyIPFromLocal);
             dataProxyConfig.setProtocolType(ProtocolType.TCP);
+            dataProxyConfig.setRequestTimeoutMs(20000L);
             messageSender = DefaultMessageSender.generateSenderByClusterId(dataProxyConfig);
             messageSender.setMsgtype(msgType);
         } catch (Exception e) {
@@ -88,7 +88,7 @@ public class TcpClientExample {
         SendResult result = null;
         try {
             result = sender.sendMessage(messageBody.getBytes("utf8"), inlongGroupId, inlongStreamId,
-                    0, String.valueOf(dt), 20, TimeUnit.SECONDS);
+                    0, String.valueOf(dt));
 
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();

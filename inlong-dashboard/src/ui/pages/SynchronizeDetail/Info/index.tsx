@@ -28,6 +28,7 @@ import { useFormContent } from './config';
 import { CommonInterface } from '../common';
 import { State } from '@/core/stores';
 import dayjs from 'dayjs';
+import { format } from '@/plugins/sync/common/SyncDefaultInfo';
 
 type Props = CommonInterface;
 
@@ -52,7 +53,11 @@ const Comp = ({ inlongGroupId, inlongStreamId, readonly, isCreate }: Props, ref)
       form.setFieldValue('scheduleType', 0);
       form.setFieldValue('scheduleUnit', 'H');
     }
-  }, [form, isCreate]);
+    if (isUpdate) {
+      form.setFieldValue('scheduleType', 0);
+      form.setFieldValue('scheduleUnit', 'H');
+    }
+  }, [form, isCreate, isUpdate]);
 
   const isUpdateStream = useMemo(() => {
     return !!inlongStreamId;
@@ -61,15 +66,27 @@ const Comp = ({ inlongGroupId, inlongStreamId, readonly, isCreate }: Props, ref)
   const { data, run: getData } = useRequest(`/group/get/${inlongGroupId}`, {
     ready: isUpdate,
     refreshDeps: [inlongGroupId],
-    formatResult: data => ({
-      ...data,
-      inCharges: data.inCharges.split(','),
-      time: [
-        dayjs(dayjs(data?.startTime), conventionalTimeFormat),
-        dayjs(dayjs(data?.endTime), conventionalTimeFormat),
-      ],
-      delayTime: convertMinutesToDelayTime(data.delayTime),
-    }),
+    formatResult: data => {
+      if (data.inlongGroupMode === 1) {
+        return {
+          ...data,
+          scheduleType: 0,
+          scheduleUnit: 'H',
+          scheduleInterval: 0,
+          delayTime: dayjs('00:00', format),
+          selfDepend: 0,
+        };
+      }
+      return {
+        ...data,
+        inCharges: data.inCharges.split(','),
+        time: [
+          dayjs(dayjs(data?.startTime), conventionalTimeFormat),
+          dayjs(dayjs(data?.endTime), conventionalTimeFormat),
+        ],
+        delayTime: convertMinutesToDelayTime(data.delayTime),
+      };
+    },
     onSuccess: data => {
       setMqType(data.mqType);
       form.setFieldsValue(data);
@@ -121,11 +138,10 @@ const Comp = ({ inlongGroupId, inlongStreamId, readonly, isCreate }: Props, ref)
 
   const onOk = async () => {
     const values = await form.validateFields();
-
     let submitData = {
       ...values,
       version: data?.version,
-      inCharges: values.inCharges?.join(','),
+      inCharges: values.inCharges instanceof Array ? values.inCharges?.join(',') : values.inCharges,
     };
     if (values.inlongGroupMode === 2) {
       submitData = {
@@ -211,9 +227,12 @@ const Comp = ({ inlongGroupId, inlongStreamId, readonly, isCreate }: Props, ref)
         form={form}
         content={formContent}
         initialValues={data}
-        onValuesChange={(c, values) => setMqType(values.mqType)}
+        onValuesChange={(c, values) => {
+          setMqType(values.mqType);
+        }}
         useMaxWidth={1400}
         col={14}
+        labelWrap
       />
 
       {!isCreate && !readonly && (

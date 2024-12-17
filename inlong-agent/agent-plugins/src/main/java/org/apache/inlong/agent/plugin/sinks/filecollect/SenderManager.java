@@ -70,6 +70,7 @@ public class SenderManager {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SenderManager.class);
     private static final SequentialID SEQUENTIAL_ID = SequentialID.getInstance();
+    public static final int RESEND_QUEUE_WAIT_MS = 10;
     // cache for group and sender list, share the map cross agent lifecycle.
     private DefaultMessageSender sender;
     private LinkedBlockingQueue<AgentSenderCallback> resendQueue;
@@ -87,7 +88,6 @@ public class SenderManager {
     private final int aliveConnectionNum;
     private final boolean isCompress;
     private final int msgType;
-    private final boolean isFile;
     private final long maxSenderTimeout;
     private final int maxSenderRetry;
     private final long retrySleepTime;
@@ -133,7 +133,6 @@ public class SenderManager {
                 CommonConstants.PROXY_SENDER_MAX_RETRY, CommonConstants.DEFAULT_PROXY_SENDER_MAX_RETRY);
         retrySleepTime = agentConf.getLong(
                 CommonConstants.PROXY_RETRY_SLEEP, CommonConstants.DEFAULT_PROXY_RETRY_SLEEP);
-        isFile = profile.getBoolean(CommonConstants.PROXY_IS_FILE, CommonConstants.DEFAULT_IS_FILE);
         ioThreadNum = profile.getInt(CommonConstants.PROXY_CLIENT_IO_THREAD_NUM,
                 CommonConstants.DEFAULT_PROXY_CLIENT_IO_THREAD_NUM);
         enableBusyWait = profile.getBoolean(CommonConstants.PROXY_CLIENT_ENABLE_BUSY_WAIT,
@@ -174,9 +173,12 @@ public class SenderManager {
     }
 
     private void closeMessageSender() {
+        Long start = AgentUtils.getCurrentTime();
         if (sender != null) {
             sender.close();
         }
+        LOGGER.info("close sender elapse {} ms instance {}", AgentUtils.getCurrentTime() - start,
+                profile.getInstanceId());
     }
 
     private AgentMetricItem getMetricItem(Map<String, String> otherDimensions) {
@@ -200,8 +202,8 @@ public class SenderManager {
         ProxyClientConfig proxyClientConfig = new ProxyClientConfig(managerAddr, inlongGroupId, authSecretId,
                 authSecretKey);
         proxyClientConfig.setTotalAsyncCallbackSize(totalAsyncBufSize);
-        proxyClientConfig.setFile(isFile);
         proxyClientConfig.setAliveConnections(aliveConnectionNum);
+        proxyClientConfig.setRequestTimeoutMs(maxSenderTimeout * 1000L);
 
         proxyClientConfig.setIoThreadNum(ioThreadNum);
         proxyClientConfig.setEnableBusyWait(enableBusyWait);
@@ -241,7 +243,7 @@ public class SenderManager {
                         message.getTotalSize(), auditVersion);
                 asyncSendByMessageSender(cb, message.getDataList(), message.getGroupId(),
                         message.getStreamId(), message.getDataTime(), SEQUENTIAL_ID.getNextUuid(),
-                        maxSenderTimeout, TimeUnit.SECONDS, message.getExtraMap(), proxySend);
+                        message.getExtraMap(), proxySend);
                 getMetricItem(message.getGroupId(), message.getStreamId()).pluginSendCount.addAndGet(
                         message.getMsgCnt());
                 suc = true;
@@ -269,11 +271,9 @@ public class SenderManager {
 
     private void asyncSendByMessageSender(SendMessageCallback cb,
             List<byte[]> bodyList, String groupId, String streamId, long dataTime, String msgUUID,
-            long timeout, TimeUnit timeUnit,
             Map<String, String> extraAttrMap, boolean isProxySend) throws ProxysdkException {
         sender.asyncSendMessage(cb, bodyList, groupId,
-                streamId, dataTime, msgUUID,
-                timeout, timeUnit, extraAttrMap, isProxySend);
+                streamId, dataTime, msgUUID, extraAttrMap, isProxySend);
     }
 
     /**
@@ -289,7 +289,7 @@ public class SenderManager {
             resendRunning = true;
             while (!shutdown) {
                 try {
-                    AgentSenderCallback callback = resendQueue.poll(1, TimeUnit.SECONDS);
+                    AgentSenderCallback callback = resendQueue.poll(RESEND_QUEUE_WAIT_MS, TimeUnit.MILLISECONDS);
                     if (callback != null) {
                         SenderMessage message = callback.message;
                         AuditUtils.add(AuditUtils.AUDIT_ID_AGENT_RESEND, message.getGroupId(),

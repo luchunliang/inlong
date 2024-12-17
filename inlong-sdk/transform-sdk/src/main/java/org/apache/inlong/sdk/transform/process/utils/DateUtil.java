@@ -17,47 +17,75 @@
 
 package org.apache.inlong.sdk.transform.process.utils;
 
-import org.apache.commons.lang3.tuple.Pair;
+import org.apache.inlong.sdk.transform.process.pojo.IntervalInfo;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class DateUtil {
 
+    private static final List<ChronoField> CHRONO_FIELD_LIST = Arrays.asList(ChronoField.YEAR,
+            ChronoField.MONTH_OF_YEAR,
+            ChronoField.DAY_OF_MONTH, ChronoField.HOUR_OF_DAY, ChronoField.MINUTE_OF_HOUR, ChronoField.SECOND_OF_MINUTE,
+            ChronoField.MICRO_OF_SECOND);
+
     // Need to follow this order
-    private static final List<DateTimeFormatter> DATE_TIME_FORMATTER_LIST = Arrays.asList(
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-    private static final List<DateTimeFormatter> TIME_FORMATTER_LIST = Arrays.asList(
-            DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSS"), DateTimeFormatter.ofPattern("HH:mm:ss"));
+    private static final Map<String, DateTimeFormatter> DATE_TIME_FORMATTER_MAP = new LinkedHashMap<>();
+    private static final Map<String, DateTimeFormatter> TIME_FORMATTER_MAP = new LinkedHashMap<>();
+    public static String YEAR_TO_MICRO = "yyyy-MM-dd HH:mm:ss.SSSSSS";
+    public static String YEAR_TO_SECOND = "yyyy-MM-dd HH:mm:ss";
+    public static String YEAR_TO_MONTH = "yyyy-MM-dd";
+    public static String HOUR_TO_MICRO = "HH:mm:ss.SSSSSS";
+    public static String HOUR_TO_SECOND = "HH:mm:ss";
+
+    static {
+        DATE_TIME_FORMATTER_MAP.put(YEAR_TO_MICRO, DateTimeFormatter.ofPattern(YEAR_TO_MICRO));
+        DATE_TIME_FORMATTER_MAP.put(YEAR_TO_SECOND, DateTimeFormatter.ofPattern(YEAR_TO_SECOND));
+        DATE_TIME_FORMATTER_MAP.put(YEAR_TO_MONTH, DateTimeFormatter.ofPattern(YEAR_TO_MONTH));
+
+        TIME_FORMATTER_MAP.put(HOUR_TO_MICRO, DateTimeFormatter.ofPattern(HOUR_TO_MICRO));
+        TIME_FORMATTER_MAP.put(HOUR_TO_SECOND, DateTimeFormatter.ofPattern(HOUR_TO_SECOND));
+    }
 
     /**
      * Time calculation
      *
      * @param dateStr      Time parameter string
-     * @param intervalPair Interval parsing results
-     * @param sign         If the sign is positive or negative, it indicates addition or subtraction
+     * @param intervalInfo Interval parsing results
+     * @param isPositive   True is positive, false is negative
      * @return Calculation result string
      */
-    public static String dateAdd(String dateStr, Pair<Integer, Map<ChronoField, Long>> intervalPair, int sign) {
-
-        if (sign < 0) {
-            sign = -1;
-        } else if (sign > 0) {
-            sign = 1;
-        } else {
-            return null;
+    public static String dateTypeAdd(String dateStr, IntervalInfo intervalInfo, boolean isPositive) {
+        Object dateParserObj = parseLocalDateTime(dateStr);
+        if (dateParserObj != null) {
+            return addDateTime(dateStr, (LocalDateTime) dateParserObj, intervalInfo, isPositive);
         }
+        dateParserObj = parseLocalTime(dateStr);
+        if (dateParserObj != null) {
+            return addTime(dateStr, (LocalTime) dateParserObj, intervalInfo, isPositive);
+        }
+        return null;
+    }
 
-        Object dateParserObj = null;
-        for (DateTimeFormatter dateTimeFormatter : DATE_TIME_FORMATTER_LIST) {
+    public static LocalDateTime dateAdd(LocalDateTime localDateTime, LocalTime localTime) {
+        return localDateTime.plusHours(localTime.getHour())
+                .plusMinutes(localTime.getMinute())
+                .plusSeconds(localTime.getSecond())
+                .plusNanos(localTime.getNano());
+    }
+
+    public static LocalDateTime parseLocalDateTime(String dateStr) {
+        LocalDateTime dateParserObj = null;
+        for (DateTimeFormatter dateTimeFormatter : DATE_TIME_FORMATTER_MAP.values()) {
             try {
                 dateParserObj = LocalDateTime.parse(dateStr, dateTimeFormatter);
             } catch (Exception e) {
@@ -68,31 +96,69 @@ public class DateUtil {
                 }
             }
             if (dateParserObj != null) {
-                return addDateTime(intervalPair, sign, (LocalDateTime) dateParserObj, dateStr);
+                return dateParserObj;
             }
         }
+        return null;
+    }
 
-        for (DateTimeFormatter dateTimeFormatter : TIME_FORMATTER_LIST) {
+    public static LocalTime parseLocalTime(String dateStr) {
+        LocalTime dateParserObj = null;
+        for (DateTimeFormatter dateTimeFormatter : TIME_FORMATTER_MAP.values()) {
             try {
                 dateParserObj = LocalTime.parse(dateStr, dateTimeFormatter);
             } catch (Exception ignored) {
 
             }
             if (dateParserObj != null) {
-                return addTime(intervalPair, sign, (LocalTime) dateParserObj, dateStr);
+                return dateParserObj;
             }
         }
-
         return null;
     }
 
-    private static String addDateTime(Pair<Integer, Map<ChronoField, Long>> intervalPair, int sign,
-            LocalDateTime dateTime, String dataStr) {
-        int factor = intervalPair.getKey();
-        Map<ChronoField, Long> valueMap = intervalPair.getValue();
+    public static IntervalInfo parseIntervalInfo(DateTimeFormatter dateTimeFormatter, String dateStr, int factor) {
+        TemporalAccessor temporalAccessor = dateTimeFormatter.parse(dateStr);
+        HashMap<ChronoField, Long> map = new HashMap<>();
+        for (ChronoField field : CHRONO_FIELD_LIST) {
+            try {
+                long num = temporalAccessor.getLong(field);
+                if (num == 0) {
+                    continue;
+                }
+                map.put(field, temporalAccessor.getLong(field));
+            } catch (Exception ignored) {
 
-        boolean hasTime = dataStr.indexOf(' ') != -1;
-        boolean hasMicroSecond = dataStr.indexOf('.') != -1;
+            }
+        }
+        return new IntervalInfo(factor, map);
+    }
+
+    public static DateTimeFormatter getDateTimeFormatter(String formatStr) {
+        DateTimeFormatter formatter = DATE_TIME_FORMATTER_MAP.get(formatStr);
+        if (formatter != null) {
+            return formatter;
+        }
+        return TIME_FORMATTER_MAP.get(formatStr);
+    }
+
+    /**
+     *
+     * @param dateStr The first time string
+     * @param dateTime It is obtained by parsing dateStr
+     * @param intervalInfo addend
+     * @param isPositive   True is positive, false is negative
+     * @return
+     */
+    public static String addDateTime(String dateStr, LocalDateTime dateTime,
+            IntervalInfo intervalInfo, boolean isPositive) {
+        int factor = intervalInfo.getFactor();
+        Map<ChronoField, Long> valueMap = intervalInfo.getChronoMap();
+
+        int sign = isPositive ? 1 : -1;
+
+        boolean hasTime = dateStr.indexOf(' ') != -1;
+        boolean hasMicroSecond = dateStr.indexOf('.') != -1;
 
         for (ChronoField field : valueMap.keySet()) {
             long amount = valueMap.get(field) * factor * sign;
@@ -127,24 +193,31 @@ public class DateUtil {
                     return null;
             }
         }
-
-        String result = dateTime.toLocalDate().toString();
         if (hasTime) {
             if (hasMicroSecond) {
-                result += " " + dateTime.toLocalTime().format(TIME_FORMATTER_LIST.get(0));
+                return dateTime.format(DATE_TIME_FORMATTER_MAP.get(YEAR_TO_MICRO));
             } else {
-                result += " " + dateTime.toLocalTime().format(TIME_FORMATTER_LIST.get(1));
+                return dateTime.format(DATE_TIME_FORMATTER_MAP.get(YEAR_TO_SECOND));
             }
         }
-        return result;
+        return dateTime.toLocalDate().toString();
     }
 
-    private static String addTime(Pair<Integer, Map<ChronoField, Long>> intervalPair, int sign, LocalTime time,
-            String dataStr) {
-        int factor = intervalPair.getKey();
-        Map<ChronoField, Long> valueMap = intervalPair.getValue();
+    /**
+     *
+     * @param dateStr The first time string
+     * @param time It is obtained by parsing dateStr
+     * @param intervalInfo addend
+     * @param isPositive   True is positive, false is negative
+     * @return
+     */
+    public static String addTime(String dateStr, LocalTime time,
+            IntervalInfo intervalInfo, boolean isPositive) {
+        int factor = intervalInfo.getFactor();
+        Map<ChronoField, Long> valueMap = intervalInfo.getChronoMap();
+        boolean hasMicroSecond = dateStr.indexOf('.') != -1;
 
-        boolean hasMicroSecond = dataStr.indexOf('.') != -1;
+        int sign = isPositive ? 1 : -1;
 
         for (ChronoField field : valueMap.keySet()) {
             long amount = valueMap.get(field) * factor * sign;
@@ -168,9 +241,9 @@ public class DateUtil {
         }
 
         if (hasMicroSecond) {
-            return time.format(TIME_FORMATTER_LIST.get(0));
+            return time.format(TIME_FORMATTER_MAP.get(HOUR_TO_MICRO));
         } else {
-            return time.format(TIME_FORMATTER_LIST.get(1));
+            return time.format(TIME_FORMATTER_MAP.get(HOUR_TO_SECOND));
         }
     }
 

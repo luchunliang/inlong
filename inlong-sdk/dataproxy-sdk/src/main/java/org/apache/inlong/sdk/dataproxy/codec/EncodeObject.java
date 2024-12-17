@@ -35,7 +35,6 @@ public class EncodeObject {
     private static final Splitter.MapSplitter MAP_SPLITTER = Splitter.on(AttributeConstants.SEPARATOR).trimResults()
             .withKeyValueSeparator(AttributeConstants.KEY_VALUE_SEPARATOR);
 
-    private byte[] bodyBytes;
     private String attributes;
     private String messageId;
     private int msgtype;
@@ -54,8 +53,8 @@ public class EncodeObject {
     private boolean isAuth = false;
     private boolean isEncrypt = false;
     private boolean isCompress = true;
-    private int groupIdNum;
-    private int streamIdNum;
+    private int groupIdNum = 0;
+    private int streamIdNum = 0;
     private String groupId;
     private String streamId;
     private short load;
@@ -74,31 +73,10 @@ public class EncodeObject {
     }
 
     /* Used by de_serialization. */
-    public EncodeObject(byte[] bodyBytes, String attributes) {
-        this.bodyBytes = bodyBytes;
+    public EncodeObject(List<byte[]> bodyList, String attributes) {
+        this.bodylist = bodyList;
         this.attributes = attributes;
         handleAttr(attributes);
-    }
-
-    /* Used by serialization.But never used */
-    // old version:we need add message id by attr
-    public EncodeObject(byte[] bodyBytes, String attributes, String messageId) {
-        this.bodyBytes = bodyBytes;
-        this.messageId = messageId;
-        this.attributes = attributes + "&messageId=" + messageId;
-        addRTMS(MsgType.MSG_COMMON_SERVICE.getValue());
-    }
-
-    // used for bytes initializtion,msgtype=3/5
-    public EncodeObject(byte[] bodyBytes, String attributes, String messageId,
-            int msgtype, boolean isCompress, final String groupId) {
-        this.bodyBytes = bodyBytes;
-        this.messageId = messageId;
-        this.attributes = attributes + "&messageId=" + messageId;
-        this.msgtype = msgtype;
-        this.groupId = groupId;
-        this.isCompress = isCompress;
-        addRTMS(msgtype);
     }
 
     // used for bodylist initializtion,msgtype=3/5
@@ -110,23 +88,6 @@ public class EncodeObject {
         this.msgtype = msgtype;
         this.groupId = groupId;
         this.isCompress = isCompress;
-        addRTMS(msgtype);
-    }
-
-    // used for bytes initializtion,msgtype=7/8
-    public EncodeObject(byte[] bodyBytes, int msgtype, boolean isCompress, boolean isReport,
-            boolean isGroupIdTransfer, long dt, long seqId, String groupId,
-            String streamId, String commonattr) {
-        this.bodyBytes = bodyBytes;
-        this.msgtype = msgtype;
-        this.isCompress = isCompress;
-        this.isReport = isReport;
-        this.dt = dt;
-        this.isGroupIdTransfer = isGroupIdTransfer;
-        this.commonattr = commonattr;
-        this.messageId = String.valueOf(seqId);
-        this.groupId = groupId;
-        this.streamId = streamId;
         addRTMS(msgtype);
     }
 
@@ -144,26 +105,6 @@ public class EncodeObject {
         this.messageId = String.valueOf(seqId);
         this.groupId = groupId;
         this.streamId = streamId;
-        addRTMS(msgtype);
-    }
-
-    // file agent, used for bytes initializtion,msgtype=7/8
-    public EncodeObject(byte[] bodyBytes, int msgtype, boolean isCompress,
-            boolean isReport, boolean isGroupIdTransfer, long dt,
-            long seqId, String groupId, String streamId, String commonattr,
-            String messageKey, String proxyIp) {
-        this.bodyBytes = bodyBytes;
-        this.msgtype = msgtype;
-        this.isCompress = isCompress;
-        this.isReport = isReport;
-        this.dt = dt;
-        this.isGroupIdTransfer = isGroupIdTransfer;
-        this.commonattr = commonattr;
-        this.messageId = String.valueOf(seqId);
-        this.groupId = groupId;
-        this.streamId = streamId;
-        this.messageKey = messageKey;
-        this.proxyIp = proxyIp;
         addRTMS(msgtype);
     }
 
@@ -269,8 +210,20 @@ public class EncodeObject {
         return isGroupIdTransfer;
     }
 
-    public void setGroupIdTransfer(boolean isGroupIdTransfer) {
-        this.isGroupIdTransfer = isGroupIdTransfer;
+    public int getGroupIdNum() {
+        return groupIdNum;
+    }
+
+    public int getStreamIdNum() {
+        return streamIdNum;
+    }
+
+    public void setGroupIdAndStreamIdNum(int groupIdNum, int streamIdNum) {
+        this.groupIdNum = groupIdNum;
+        this.streamIdNum = streamIdNum;
+        if (groupIdNum != 0 && streamIdNum != 0) {
+            this.isGroupIdTransfer = true;
+        }
     }
 
     public short getLoad() {
@@ -339,22 +292,6 @@ public class EncodeObject {
         this.encryptEntry = encryptEntry;
     }
 
-    public int getGroupIdNum() {
-        return groupIdNum;
-    }
-
-    public void setGroupIdNum(int groupIdNum) {
-        this.groupIdNum = groupIdNum;
-    }
-
-    public int getStreamIdNum() {
-        return streamIdNum;
-    }
-
-    public void setStreamIdNum(int streamIdNum) {
-        this.streamIdNum = streamIdNum;
-    }
-
     public long getDt() {
         return dt;
     }
@@ -393,14 +330,6 @@ public class EncodeObject {
 
     public void setMsgtype(int msgtype) {
         this.msgtype = msgtype;
-    }
-
-    public byte[] getBodyBytes() {
-        return bodyBytes;
-    }
-
-    public void setBodyBytes(byte[] bodyBytes) {
-        this.bodyBytes = bodyBytes;
     }
 
     public String getAttributes() {

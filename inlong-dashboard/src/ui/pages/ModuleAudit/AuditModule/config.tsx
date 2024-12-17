@@ -22,8 +22,7 @@ import { Button } from 'antd';
 import dayjs from 'dayjs';
 import i18n from '@/i18n';
 import { sinks } from '@/plugins/sinks';
-import request from '@/core/utils/request';
-
+import { CSVLink } from 'react-csv';
 export const timeStaticsDimList = [
   {
     label: i18n.t('pages.GroupDetail.Audit.Min'),
@@ -69,7 +68,6 @@ function getAuditLabel(auditId: number, nodeType?: string) {
 }
 
 export const toChartData = (source, sourceDataMap) => {
-  console.log(source, sourceDataMap);
   const xAxisData = Object.keys(sourceDataMap ? sourceDataMap : '12345');
   return {
     legend: {
@@ -158,7 +156,17 @@ export const getSourceDataWithCommas = sourceData => {
 
 let endTimeVisible = true;
 
-export const getFormContent = (initialValues, onSearch, onDataStreamSuccess) => [
+export const getFormContent = (
+  initialValues,
+  onSearch,
+  onDataStreamSuccess,
+  auditData,
+  sourceData,
+  csvData,
+  setInlongGroupId,
+  setInlongStreamID,
+  fileName,
+) => [
   {
     type: 'select',
     label: i18n.t('pages.ModuleAudit.config.InlongGroupId'),
@@ -167,6 +175,9 @@ export const getFormContent = (initialValues, onSearch, onDataStreamSuccess) => 
       dropdownMatchSelectWidth: false,
       showSearch: true,
       allowClear: true,
+      onChange: (value, option) => {
+        setInlongGroupId(value);
+      },
       options: {
         requestAuto: true,
         requestTrigger: ['onOpen', 'onSearch'],
@@ -200,6 +211,9 @@ export const getFormContent = (initialValues, onSearch, onDataStreamSuccess) => 
       showSearch: true,
       allowClear: true,
       disabled: !Boolean(values.inlongGroupId),
+      onChange: (value, option) => {
+        setInlongStreamID(value);
+      },
       options: {
         requestAuto: true,
         requestTrigger: ['onOpen', 'onSearch'],
@@ -249,7 +263,6 @@ export const getFormContent = (initialValues, onSearch, onDataStreamSuccess) => 
             return Promise.resolve();
           }
           const timeDiff = value - getFieldValue('startDate');
-          console.log('timeDiff', value, getFieldValue('startDate'), timeDiff);
           if (timeDiff >= 0) {
             const isHourDiff = dim === 'HOUR' && timeDiff < 1000 * 60 * 60 * 24 * 3;
             const isDayDiff = dim === 'DAY' && timeDiff < 1000 * 60 * 60 * 24 * 7;
@@ -303,34 +316,16 @@ export const getFormContent = (initialValues, onSearch, onDataStreamSuccess) => 
       allowClear: true,
       showSearch: true,
       dropdownMatchSelectWidth: false,
-      options: {
-        requestAuto: true,
-        requestTrigger: ['onOpen'],
-        requestService: () => {
-          return request({
-            url: '/audit/getAuditBases',
-            params: {
-              isMetric: true,
-            },
+      options: auditData?.reduce((accumulator, item) => {
+        const existingItem = accumulator.find((i: { value: any }) => i.value === item.auditId);
+        if (!existingItem) {
+          accumulator.push({
+            label: i18n?.language === 'cn' ? item.nameInChinese : item.nameInEnglish,
+            value: item.auditId,
           });
-        },
-        requestParams: {
-          formatResult: result => {
-            return result?.reduce((accumulator, item) => {
-              const existingItem = accumulator.find(
-                (i: { value: any }) => i.value === item.auditId,
-              );
-              if (!existingItem) {
-                accumulator.push({
-                  label: i18n?.language === 'cn' ? item.nameInChinese : item.nameInEnglish,
-                  value: item.auditId,
-                });
-              }
-              return accumulator;
-            }, []);
-          },
-        },
-      },
+        }
+        return accumulator;
+      }, []),
       filterOption: (keyword: string, option: { label: any }) => {
         return (option?.label ?? '').toLowerCase().includes(keyword.toLowerCase());
       },
@@ -340,6 +335,15 @@ export const getFormContent = (initialValues, onSearch, onDataStreamSuccess) => 
     type: (
       <Button type="primary" onClick={onSearch}>
         {i18n.t('pages.GroupDetail.Audit.Search')}
+      </Button>
+    ),
+  },
+  {
+    type: (
+      <Button type="primary" disabled={!(sourceData.length > 0)}>
+        <CSVLink data={csvData} filename={fileName}>
+          {i18n.t('pages.GroupDetail.Audit.ExportCSV')}
+        </CSVLink>
       </Button>
     ),
   },

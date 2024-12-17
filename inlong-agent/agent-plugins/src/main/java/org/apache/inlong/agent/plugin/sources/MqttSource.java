@@ -22,6 +22,7 @@ import org.apache.inlong.agent.constant.TaskConstants;
 import org.apache.inlong.agent.except.FileException;
 import org.apache.inlong.agent.message.DefaultMessage;
 import org.apache.inlong.agent.plugin.Message;
+import org.apache.inlong.agent.plugin.sources.extend.DefaultExtendedHandler;
 import org.apache.inlong.agent.plugin.sources.file.AbstractSource;
 
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -64,6 +65,11 @@ public class MqttSource extends AbstractSource {
     @Override
     protected String getThreadName() {
         return "mqtt-source-" + taskId + "-" + instanceId;
+    }
+
+    @Override
+    protected void initExtendClass() {
+        extendClass = DefaultExtendedHandler.class.getCanonicalName();
     }
 
     @Override
@@ -115,7 +121,7 @@ public class MqttSource extends AbstractSource {
                     headerMap.put("record.messageId", String.valueOf(message.getId()));
                     headerMap.put("record.qos", String.valueOf(message.getQos()));
                     byte[] recordValue = message.getPayload();
-                    mqttMessagesQueue.offer(new DefaultMessage(recordValue, headerMap), 1, TimeUnit.SECONDS);
+                    mqttMessagesQueue.offer(new DefaultMessage(recordValue, headerMap));
 
                 }
 

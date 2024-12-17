@@ -27,6 +27,7 @@ import org.apache.inlong.manager.common.exceptions.BusinessException;
 import org.apache.inlong.manager.common.util.CommonBeanUtils;
 import org.apache.inlong.manager.common.util.Preconditions;
 import org.apache.inlong.manager.dao.entity.InlongGroupEntity;
+import org.apache.inlong.manager.dao.entity.InlongStreamEntity;
 import org.apache.inlong.manager.dao.entity.StreamSourceEntity;
 import org.apache.inlong.manager.dao.mapper.InlongGroupEntityMapper;
 import org.apache.inlong.manager.dao.mapper.InlongStreamEntityMapper;
@@ -45,6 +46,7 @@ import org.apache.inlong.manager.pojo.stream.InlongStreamInfo;
 import org.apache.inlong.manager.pojo.stream.StreamField;
 import org.apache.inlong.manager.pojo.user.UserInfo;
 import org.apache.inlong.manager.service.group.GroupCheckService;
+import org.apache.inlong.manager.service.user.UserService;
 
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -67,6 +69,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -90,6 +93,8 @@ public class StreamSourceServiceImpl implements StreamSourceService {
     private StreamSourceFieldEntityMapper sourceFieldMapper;
     @Autowired
     private GroupCheckService groupCheckService;
+    @Autowired
+    private UserService userService;
 
     @Override
     @Transactional(rollbackFor = Throwable.class, propagation = Propagation.REQUIRES_NEW)
@@ -99,8 +104,8 @@ public class StreamSourceServiceImpl implements StreamSourceService {
 
         // Check if it can be added
         String groupId = request.getInlongGroupId();
-        InlongGroupEntity groupEntity = groupCheckService.checkGroupStatus(groupId, operator);
         String streamId = request.getInlongStreamId();
+        InlongStreamEntity streamEntity = groupCheckService.checkStreamStatus(groupId, streamId, operator);
         String sourceName = request.getSourceName();
         List<StreamSourceEntity> existList = sourceMapper.selectByRelatedId(groupId, streamId, sourceName);
         if (CollectionUtils.isNotEmpty(existList)) {
@@ -115,7 +120,7 @@ public class StreamSourceServiceImpl implements StreamSourceService {
         if (CollectionUtils.isNotEmpty(streamFields)) {
             streamFields.forEach(streamField -> streamField.setId(null));
         }
-        int id = sourceOperator.saveOpt(request, groupEntity.getStatus(), operator);
+        int id = sourceOperator.saveOpt(request, streamEntity.getStatus(), operator);
 
         LOGGER.info("success to save source info: {}", request);
         return id;
@@ -296,13 +301,18 @@ public class StreamSourceServiceImpl implements StreamSourceService {
             throw new BusinessException(ErrorCodeEnum.GROUP_NOT_FOUND,
                     String.format("InlongGroup does not exist with InlongGroupId=%s", groupId));
         }
+        String streamId = request.getInlongStreamId();
+        InlongStreamEntity streamEntity = groupCheckService.checkStreamStatus(groupId, streamId, operator);
+
+        userService.checkUser(groupEntity.getInCharges(), operator,
+                "Current user does not have permission to update source info");
         StreamSourceOperator sourceOperator = operatorFactory.getInstance(request.getSourceType());
         // Remove id in sourceField when save
         List<StreamField> streamFields = request.getFieldList();
         if (CollectionUtils.isNotEmpty(streamFields)) {
             streamFields.forEach(streamField -> streamField.setId(null));
         }
-        sourceOperator.updateOpt(request, groupEntity.getStatus(), groupEntity.getInlongGroupMode(), operator);
+        sourceOperator.updateOpt(request, streamEntity.getStatus(), groupEntity.getInlongGroupMode(), operator);
 
         LOGGER.info("success to update source info: {}", request);
         return true;
@@ -334,7 +344,8 @@ public class StreamSourceServiceImpl implements StreamSourceService {
             throw new BusinessException(ErrorCodeEnum.GROUP_NOT_FOUND,
                     String.format("InlongGroup does not exist with InlongGroupId=%s", entity.getInlongGroupId()));
         }
-
+        userService.checkUser(groupEntity.getInCharges(), operator,
+                "Current user does not have permission to delete source info");
         SourceStatus curStatus = SourceStatus.forCode(entity.getStatus());
         SourceStatus nextStatus = SourceStatus.TO_BE_ISSUED_DELETE;
         // if source is frozen|failed|new, or if it is a template source or auto push source, delete directly
@@ -527,25 +538,41 @@ public class StreamSourceServiceImpl implements StreamSourceService {
     }
 
     @Override
-    public Integer addDataAddTask(DataAddTaskRequest request, String operator) {
+    public List<Integer> addDataAddTask(DataAddTaskRequest request, String operator) {
         LOGGER.info("begin to add data add task info: {}", request);
-        StreamSourceEntity entity = sourceMapper.selectById(request.getSourceId());
-        StreamSourceOperator sourceOperator = operatorFactory.getInstance(entity.getSourceType());
-        int id = sourceOperator.addDataAddTask(request, operator);
-        LOGGER.info("success to add data add task info: {}", request);
-        return id;
-    }
-
-    @Override
-    public List<Integer> batchAddDataAddTask(String groupId, List<DataAddTaskRequest> requestList,
-            String operator) {
-        List<Integer> result = new ArrayList<>();
-        String auditVersion = String.valueOf(sourceMapper.selectDataAddTaskCount(groupId, null));
-        for (DataAddTaskRequest request : requestList) {
-            request.setAuditVersion(auditVersion);
-            int id = addDataAddTask(request, operator);
-            result.add(id);
+        String auditVersion = String.valueOf(sourceMapper.selectDataAddTaskCount(request.getGroupId(), null));
+        request.setAuditVersion(auditVersion);
+        List<String> agentIpList = request.getAgentIpList();
+        List<StreamSourceEntity> entityList = new ArrayList<>();
+        List<Integer> resultIdList = new ArrayList<>();
+        if (request.getSourceId() != null) {
+            StreamSourceEntity entity = sourceMapper.selectById(request.getSourceId());
+            Preconditions.expectNotNull(entity, ErrorCodeEnum.SOURCE_INFO_NOT_FOUND);
+            entityList.add(entity);
+        } else {
+            if (agentIpList == null) {
+                throw new BusinessException("Agent ip list can not null");
+            }
+            if (CollectionUtils.isEmpty(agentIpList)) {
+                entityList = sourceMapper.selectByRelatedId(request.getGroupId(), null, null);
+            } else {
+                for (String agentIp : agentIpList) {
+                    List<StreamSourceEntity> sourceEntityList = sourceMapper.selectByAgentIp(agentIp);
+                    entityList.addAll(sourceEntityList);
+                }
+            }
         }
-        return result;
+        for (StreamSourceEntity sourceEntity : entityList) {
+            if (sourceEntity.getTaskMapId() != null || !Objects.equals(sourceEntity.getInlongGroupId(),
+                    request.getGroupId())) {
+                continue;
+            }
+            StreamSourceOperator sourceOperator = operatorFactory.getInstance(sourceEntity.getSourceType());
+            request.setSourceId(sourceEntity.getId());
+            int id = sourceOperator.addDataAddTask(request, operator);
+            resultIdList.add(id);
+        }
+        LOGGER.info("success to add data add task info: {}, data add task size: {}", request, resultIdList.size());
+        return resultIdList;
     }
 }

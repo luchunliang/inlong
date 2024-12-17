@@ -42,7 +42,6 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.inlong.agent.constant.AgentConstants.AGENT_CLUSTER_NAME;
@@ -141,30 +140,24 @@ public class AgentStatusManager {
     private String systemStartupTime = ExcuteLinux.exeCmd("uptime -s").replaceAll("\r|\n", "");
 
     private AgentStatusManager(AgentManager agentManager) {
-        this.agentManager = agentManager;
         this.conf = AgentConfiguration.getAgentConf();
         threadBean = ManagementFactory.getThreadMXBean();
+        this.agentManager = agentManager;
     }
 
-    public static AgentStatusManager getInstance(AgentManager agentManager) {
-        if (manager == null) {
-            synchronized (AgentStatusManager.class) {
-                if (manager == null) {
-                    manager = new AgentStatusManager(agentManager);
-                }
+    public static void init(AgentManager agentManager) {
+        synchronized (AgentStatusManager.class) {
+            if (manager == null) {
+                manager = new AgentStatusManager(agentManager);
             }
         }
+    }
+
+    private static AgentStatusManager getInstance() {
         return manager;
     }
 
-    public static AgentStatusManager getInstance() {
-        if (manager == null) {
-            throw new RuntimeException("HeartbeatManager has not been initialized by agentManager");
-        }
-        return manager;
-    }
-
-    public void sendStatusMsg(DefaultMessageSender sender) {
+    private void doSendStatusMsg(DefaultMessageSender sender) {
         AgentStatus data = AgentStatusManager.getInstance().getStatus();
         LOGGER.info("status detail: {}", data);
         if (sender == null) {
@@ -174,9 +167,15 @@ public class AgentStatusManager {
                 INLONG_AGENT_SYSTEM,
                 INLONG_AGENT_STATUS,
                 AgentUtils.getCurrentTime(),
-                "", 30, TimeUnit.SECONDS);
+                "");
         if (ret != SendResult.OK) {
             LOGGER.error("send status failed: ret {}", ret);
+        }
+    }
+
+    public static void sendStatusMsg(DefaultMessageSender sender) {
+        if (AgentStatusManager.getInstance() != null) {
+            AgentStatusManager.getInstance().doSendStatusMsg(sender);
         }
     }
 

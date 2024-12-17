@@ -59,7 +59,7 @@ public class CommonConstants {
     public static final int DEFAULT_PROXY_PACKAGE_MAX_TIMEOUT_MS = 4 * 1000;
 
     public static final String PROXY_BATCH_FLUSH_INTERVAL = "proxy.batch.flush.interval";
-    public static final int DEFAULT_PROXY_BATCH_FLUSH_INTERVAL = 100;
+    public static final int DEFAULT_PROXY_BATCH_FLUSH_INTERVAL = 1;
 
     public static final String PROXY_SENDER_MAX_TIMEOUT = "proxy.sender.maxTimeout";
     // max timeout in seconds.
@@ -67,9 +67,6 @@ public class CommonConstants {
 
     public static final String PROXY_SENDER_MAX_RETRY = "proxy.sender.maxRetry";
     public static final int DEFAULT_PROXY_SENDER_MAX_RETRY = 5;
-
-    public static final String PROXY_IS_FILE = "proxy.isFile";
-    public static final boolean DEFAULT_IS_FILE = false;
 
     public static final String PROXY_CLIENT_IO_THREAD_NUM = "client.iothread.num";
     public static final int DEFAULT_PROXY_CLIENT_IO_THREAD_NUM =
