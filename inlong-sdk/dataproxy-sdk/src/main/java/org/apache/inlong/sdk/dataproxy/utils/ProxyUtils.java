@@ -18,30 +18,136 @@
 package org.apache.inlong.sdk.dataproxy.utils;
 
 import org.apache.inlong.common.msg.AttributeConstants;
-import org.apache.inlong.sdk.dataproxy.ConfigConstants;
-import org.apache.inlong.sdk.dataproxy.ProxyClientConfig;
+import org.apache.inlong.common.msg.MsgType;
+import org.apache.inlong.sdk.dataproxy.common.SdkConsts;
+import org.apache.inlong.sdk.dataproxy.sender.tcp.TcpMsgSenderConfig;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 public class ProxyUtils {
 
+    public static final String KEY_FILE_STATUS_CHECK = "_file_status_check";
+    public static final String KEY_SECRET_ID = "_secretId";
+    public static final String KEY_SIGNATURE = "_signature";
+    public static final String KEY_TIME_STAMP = "_timeStamp";
+    public static final String KEY_NONCE = "_nonce";
+    public static final String KEY_USERNAME = "_userName";
+    public static final String KEY_CLIENT_IP = "_clientIP";
+    public static final String KEY_ENCY_VERSION = "_encyVersion";
+    public static final String KEY_ENCY_AES_KEY = "_encyAesKey";
     private static final Logger logger = LoggerFactory.getLogger(ProxyUtils.class);
+    private static final LogCounter exceptCounter = new LogCounter(10, 200000, 60 * 1000L);
+
     private static final int TIME_LENGTH = 13;
-    private static final Set<String> invalidAttr = new HashSet<>();
+    public static final Set<String> SdkReservedWords = new HashSet<>();
+    public static final Set<MsgType> SdkAllowedMsgType = new HashSet<>();
+    private static String localHost;
+    private static String sdkVersion;
+    private static Integer sdkProcessId;
 
     static {
-        Collections.addAll(invalidAttr, "groupId", "streamId", "dt", "msgUUID", "cp",
-                "cnt", "mt", "m", "sid", "t", "NodeIP", "messageId", "_file_status_check", "_secretId",
-                "_signature", "_timeStamp", "_nonce", "_userName", "_clientIP", "_encyVersion", "_encyAesKey",
-                "proxySend", "errMsg", "errCode", AttributeConstants.MSG_RPT_TIME);
+        getLocalIp();
+        getProcessPid();
+        getJarVersion();
+        Collections.addAll(SdkReservedWords,
+                AttributeConstants.GROUP_ID, AttributeConstants.STREAM_ID,
+                AttributeConstants.DATA_TIME, AttributeConstants.MSG_UUID,
+                AttributeConstants.COMPRESS_TYPE, AttributeConstants.MESSAGE_COUNT,
+                AttributeConstants.MESSAGE_TYPE, AttributeConstants.METHOD,
+                AttributeConstants.SEQUENCE_ID, AttributeConstants.TIME_STAMP,
+                AttributeConstants.NODE_IP, AttributeConstants.MESSAGE_ID,
+                AttributeConstants.MESSAGE_IS_ACK, AttributeConstants.MESSAGE_PROXY_SEND,
+                AttributeConstants.MESSAGE_PROCESS_ERRCODE, AttributeConstants.MESSAGE_PROCESS_ERRMSG,
+                AttributeConstants.MSG_RPT_TIME, AttributeConstants.PROXY_SDK_VERSION,
+                KEY_FILE_STATUS_CHECK, KEY_SECRET_ID, KEY_SIGNATURE, KEY_TIME_STAMP,
+                KEY_NONCE, KEY_USERNAME, KEY_CLIENT_IP, KEY_ENCY_VERSION, KEY_ENCY_AES_KEY);
+        /*
+         * Collections.addAll(SdkReservedWords, "groupId", "streamId", "dt", "msgUUID", "cp", "cnt", "mt", "m", "sid",
+         * "t", "NodeIP", "messageId", "isAck", "proxySend", "errCode", "errMsg", "rtms", "sdkVersion",
+         * "_file_status_check", "_secretId", "_signature", "_timeStamp", "_nonce", "_userName", "_clientIP",
+         * "_encyVersion", "_encyAesKey");
+         */
+
+        Collections.addAll(SdkAllowedMsgType,
+                MsgType.MSG_ACK_SERVICE, MsgType.MSG_MULTI_BODY, MsgType.MSG_BIN_MULTI_BODY);
+    }
+
+    public static String getLocalIp() {
+        if (localHost != null) {
+            return localHost;
+        }
+        String ip = "127.0.0.1";
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+            ip = socket.getLocalAddress().getHostAddress();
+        } catch (Throwable ex) {
+            if (exceptCounter.shouldPrint()) {
+                logger.error("DataProxy-SDK get local IP failure", ex);
+            }
+        }
+        localHost = ip;
+        return ip;
+    }
+
+    public static String getJarVersion() {
+        if (sdkVersion != null) {
+            return sdkVersion;
+        }
+        Properties properties = new Properties();
+        try (InputStream is = ProxyUtils.class.getResourceAsStream("/git.properties")) {
+            properties.load(is);
+            sdkVersion = properties.getProperty("git.build.version");
+        } catch (Throwable ex) {
+            if (exceptCounter.shouldPrint()) {
+                logger.error("DataProxy-SDK get version failure", ex);
+            }
+        }
+        return sdkVersion;
+    }
+
+    public static Integer getProcessPid() {
+        if (sdkProcessId != null) {
+            return sdkProcessId;
+        }
+        try {
+            String processName = ManagementFactory.getRuntimeMXBean().getName();
+            sdkProcessId = Integer.parseInt(processName.split("@")[0]);
+        } catch (Throwable ex) {
+            if (exceptCounter.shouldPrint()) {
+                logger.error("DataProxy-SDK get process ID failure", ex);
+            }
+        }
+        return sdkProcessId;
+    }
+
+    public static boolean sleepSomeTime(long sleepTimeMs) {
+        try {
+            Thread.sleep(sleepTimeMs);
+            return true;
+        } catch (Throwable ex) {
+            return false;
+        }
+    }
+
+    public static String buildClusterIdKey(String protocol, String regionName, Integer clusterId) {
+        return clusterId + ":" + regionName + ":" + protocol;
+    }
+
+    public static String buildGroupIdConfigKey(String protocol, String regionName, String groupId) {
+        return protocol + ":" + regionName + ":" + groupId;
     }
 
     public static boolean isAttrKeysValid(Map<String, String> attrsMap) {
@@ -49,7 +155,7 @@ public class ProxyUtils {
             return false;
         }
         for (String key : attrsMap.keySet()) {
-            if (invalidAttr.contains(key)) {
+            if (SdkReservedWords.contains(key)) {
                 logger.error("the attributes is invalid ,please check ! {}", key);
                 return false;
             }
@@ -105,9 +211,9 @@ public class ProxyUtils {
             return true;
         }
         // Reserve space for attribute
-        if (body.length > maxLen - ConfigConstants.RESERVED_ATTRIBUTE_LENGTH) {
+        if (body.length > maxLen - SdkConsts.RESERVED_ATTRIBUTE_LENGTH) {
             logger.debug("body length({}) > max length({}) - fixed attribute length({})",
-                    body.length, maxLen, ConfigConstants.RESERVED_ATTRIBUTE_LENGTH);
+                    body.length, maxLen, SdkConsts.RESERVED_ATTRIBUTE_LENGTH);
             return false;
         }
         return true;
@@ -129,9 +235,9 @@ public class ProxyUtils {
             size += body.length;
         }
         // Reserve space for attribute
-        if (size > maxLen - ConfigConstants.RESERVED_ATTRIBUTE_LENGTH) {
+        if (size > maxLen - SdkConsts.RESERVED_ATTRIBUTE_LENGTH) {
             logger.debug("bodyList length({}) > max length({}) - fixed attribute length({})",
-                    size, maxLen, ConfigConstants.RESERVED_ATTRIBUTE_LENGTH);
+                    size, maxLen, SdkConsts.RESERVED_ATTRIBUTE_LENGTH);
             return false;
         }
         return true;
@@ -147,14 +253,14 @@ public class ProxyUtils {
     /**
      * valid client config
      *
-     * @param clientConfig
+     * @param tcpConfig
      */
-    public static void validClientConfig(ProxyClientConfig clientConfig) {
-        if (clientConfig.isEnableAuthentication()) {
-            if (StringUtils.isBlank(clientConfig.getAuthSecretId())) {
+    public static void validClientConfig(TcpMsgSenderConfig tcpConfig) {
+        if (tcpConfig.isEnableMgrAuthz()) {
+            if (StringUtils.isBlank(tcpConfig.getMgrAuthSecretId())) {
                 throw new IllegalArgumentException("Authentication require secretId not Blank!");
             }
-            if (StringUtils.isBlank(clientConfig.getAuthSecretKey())) {
+            if (StringUtils.isBlank(tcpConfig.getMgrAuthSecretKey())) {
                 throw new IllegalArgumentException("Authentication require secretKey not Blank!");
             }
         }

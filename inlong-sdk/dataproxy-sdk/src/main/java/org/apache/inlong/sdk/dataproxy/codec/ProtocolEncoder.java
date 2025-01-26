@@ -20,9 +20,10 @@ package org.apache.inlong.sdk.dataproxy.codec;
 import org.apache.inlong.common.msg.AttributeConstants;
 import org.apache.inlong.sdk.dataproxy.config.EncryptConfigEntry;
 import org.apache.inlong.sdk.dataproxy.config.EncryptInfo;
-import org.apache.inlong.sdk.dataproxy.network.IpUtils;
+import org.apache.inlong.sdk.dataproxy.utils.AuthzUtils;
 import org.apache.inlong.sdk.dataproxy.utils.EncryptUtil;
 import org.apache.inlong.sdk.dataproxy.utils.LogCounter;
+import org.apache.inlong.sdk.dataproxy.utils.ProxyUtils;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -40,9 +41,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.List;
 
-import static org.apache.inlong.sdk.dataproxy.ConfigConstants.FLAG_ALLOW_AUTH;
-import static org.apache.inlong.sdk.dataproxy.ConfigConstants.FLAG_ALLOW_COMPRESS;
-import static org.apache.inlong.sdk.dataproxy.ConfigConstants.FLAG_ALLOW_ENCRYPT;
+import static org.apache.inlong.sdk.dataproxy.common.SdkConsts.FLAG_ALLOW_AUTH;
+import static org.apache.inlong.sdk.dataproxy.common.SdkConsts.FLAG_ALLOW_COMPRESS;
+import static org.apache.inlong.sdk.dataproxy.common.SdkConsts.FLAG_ALLOW_ENCRYPT;
 
 public class ProtocolEncoder extends MessageToMessageEncoder<EncodeObject> {
 
@@ -84,8 +85,8 @@ public class ProtocolEncoder extends MessageToMessageEncoder<EncodeObject> {
                 }
                 long timestamp = System.currentTimeMillis();
                 int nonce = new SecureRandom(String.valueOf(timestamp).getBytes()).nextInt(Integer.MAX_VALUE);
-                endAttr = endAttr + "_userName=" + object.getUserName() + "&_clientIP=" + IpUtils.getLocalIp()
-                        + "&_signature=" + IpUtils.generateSignature(object.getUserName(),
+                endAttr = endAttr + "_userName=" + object.getUserName() + "&_clientIP=" + ProxyUtils.getLocalIp()
+                        + "&_signature=" + AuthzUtils.generateSignature(object.getUserName(),
                                 timestamp, nonce, object.getSecretKey())
                         + "&_timeStamp=" + timestamp + "&_nonce=" + nonce;
             }

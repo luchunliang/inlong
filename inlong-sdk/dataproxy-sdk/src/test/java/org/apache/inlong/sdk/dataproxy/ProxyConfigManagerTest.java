@@ -17,10 +17,11 @@
 
 package org.apache.inlong.sdk.dataproxy;
 
+import org.apache.inlong.sdk.dataproxy.common.ProcessResult;
 import org.apache.inlong.sdk.dataproxy.config.ProxyConfigEntry;
 import org.apache.inlong.sdk.dataproxy.config.ProxyConfigManager;
-import org.apache.inlong.sdk.dataproxy.network.ClientMgr;
-import org.apache.inlong.sdk.dataproxy.utils.Tuple2;
+import org.apache.inlong.sdk.dataproxy.network.DefClientMgr;
+import org.apache.inlong.sdk.dataproxy.sender.tcp.TcpMsgSenderConfig;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,20 +36,21 @@ public class ProxyConfigManagerTest {
     private final String localFile = Paths.get(
             Objects.requireNonNull(this.getClass().getClassLoader().getResource("proxylist.json")).toURI())
             .toString();
-    private final ProxyClientConfig clientConfig = PowerMockito.mock(ProxyClientConfig.class);
-    private final ClientMgr clientMgr = PowerMockito.mock(ClientMgr.class);
+    private final TcpMsgSenderConfig clientConfig = PowerMockito.mock(TcpMsgSenderConfig.class);
+    private final DefClientMgr clientMgr = PowerMockito.mock(DefClientMgr.class);
     private final ProxyConfigManager proxyConfigManager;
 
     public ProxyConfigManagerTest() throws URISyntaxException {
-        clientConfig.setConfigStoreBasePath(localFile);
+        clientConfig.setMetaStoreBasePath(localFile);
         proxyConfigManager =
                 new ProxyConfigManager("test", clientConfig, clientMgr);
     }
 
     @Test
     public void testProxyConfigParse() throws Exception {
-        Tuple2<ProxyConfigEntry, String> result = proxyConfigManager.getLocalProxyListFromFile(localFile);
-        ProxyConfigEntry proxyEntry = result.getF0();
+        ProcessResult procResult = new ProcessResult();
+        proxyConfigManager.getLocalProxyListFromFile(localFile, procResult);
+        ProxyConfigEntry proxyEntry = (ProxyConfigEntry) procResult.getRetData();
         Assert.assertEquals(proxyEntry.isInterVisit(), false);
         Assert.assertEquals(proxyEntry.getLoad(), 12);
         Assert.assertEquals(proxyEntry.getClusterId(), 1);
