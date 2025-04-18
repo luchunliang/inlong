@@ -17,10 +17,13 @@
 
 package org.apache.inlong.manager.service.source.file;
 
+import org.apache.inlong.common.pojo.agent.DataConfig;
 import org.apache.inlong.manager.common.consts.SourceType;
 import org.apache.inlong.manager.common.enums.ErrorCodeEnum;
 import org.apache.inlong.manager.common.exceptions.BusinessException;
 import org.apache.inlong.manager.common.util.CommonBeanUtils;
+import org.apache.inlong.manager.common.util.JsonUtils;
+import org.apache.inlong.manager.dao.entity.InlongStreamEntity;
 import org.apache.inlong.manager.dao.entity.StreamSourceEntity;
 import org.apache.inlong.manager.dao.mapper.StreamSourceEntityMapper;
 import org.apache.inlong.manager.pojo.source.DataAddTaskDTO;
@@ -43,6 +46,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -138,6 +142,19 @@ public class FileSourceOperator extends AbstractSourceOperator {
             throw new BusinessException(ErrorCodeEnum.SOURCE_INFO_INCORRECT,
                     String.format("serialize extParams of File SourceDTO failure: %s", e.getMessage()));
         }
+    }
+
+    @Override
+    public String updateDataConfig(String extParams, InlongStreamEntity streamEntity, DataConfig dataConfig) {
+        String dataSeparator = String.valueOf((char) Integer.parseInt(streamEntity.getDataSeparator()));
+        FileSourceDTO fileSourceDTO = JsonUtils.parseObject(extParams, FileSourceDTO.class);
+        if (Objects.nonNull(fileSourceDTO)) {
+            fileSourceDTO.setDataSeparator(dataSeparator);
+            dataConfig.setAuditVersion(fileSourceDTO.getAuditVersion());
+            fileSourceDTO.setDataContentStyle(streamEntity.getDataType());
+            extParams = JsonUtils.toJsonString(fileSourceDTO);
+        }
+        return extParams;
     }
 
 }

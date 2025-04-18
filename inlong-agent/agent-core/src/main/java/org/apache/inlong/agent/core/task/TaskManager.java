@@ -27,6 +27,8 @@ import org.apache.inlong.agent.plugin.file.Task;
 import org.apache.inlong.agent.store.Store;
 import org.apache.inlong.agent.store.TaskStore;
 import org.apache.inlong.agent.utils.AgentUtils;
+import org.apache.inlong.agent.utils.EventReportUtils;
+import org.apache.inlong.agent.utils.EventReportUtils.EvenCodeEnum;
 import org.apache.inlong.agent.utils.ThreadUtils;
 import org.apache.inlong.common.enums.TaskStateEnum;
 
@@ -61,13 +63,13 @@ public class TaskManager extends AbstractDaemon {
     private static final int ACTION_QUEUE_CAPACITY = 1000;
     private long lastPrintTime = 0;
     // task basic store
-    private final Store taskBasicStore;
+    private static Store taskBasicStore;
     // instance basic store
-    private final Store instanceBasicStore;
+    private static Store instanceBasicStore;
     // offset basic store
-    private final Store offsetBasicStore;
+    private static Store offsetBasicStore;
     // task in task store
-    private final TaskStore taskStore;
+    private static TaskStore taskStore;
     // task in memory
     private final ConcurrentHashMap<String, Task> taskMap;
     // task config from manager.
@@ -144,9 +146,10 @@ public class TaskManager extends AbstractDaemon {
         pendingTasks = new LinkedBlockingQueue<>(taskMaxLimit);
         configQueue = new LinkedBlockingQueue<>(CONFIG_QUEUE_CAPACITY);
         actionQueue = new LinkedBlockingQueue<>(ACTION_QUEUE_CAPACITY);
+        EventReportUtils.init();
     }
 
-    public TaskStore getTaskStore() {
+    public static TaskStore getTaskStore() {
         return taskStore;
     }
 
@@ -299,6 +302,11 @@ public class TaskManager extends AbstractDaemon {
                         profileFromManager.getTaskId(),
                         profileFromManager.isRetry(), profileFromManager.getState());
                 addTask(profileFromManager);
+                EventReportUtils.report(profileFromManager.getInlongGroupId(),
+                        profileFromManager.getInlongStreamId(), AgentUtils.getCurrentTime(),
+                        EventReportUtils.EVENT_TYPE_CONFIG_UPDATE, EventReportUtils.EVENT_LEVEL_INFO,
+                        EvenCodeEnum.TASK_ADD, profileFromManager.toJsonStr(),
+                        EvenCodeEnum.TASK_ADD.getMessage());
             } else {
                 TaskStateEnum managerState = profileFromManager.getState();
                 TaskStateEnum storeState = taskFromStore.getState();
@@ -331,6 +339,11 @@ public class TaskManager extends AbstractDaemon {
         taskStore.getTasks().forEach((profileFromStore) -> {
             if (!tasksFromManager.containsKey(profileFromStore.getTaskId())) {
                 LOGGER.info("traverseStoreTasksToManager try to delete task {}", profileFromStore.getTaskId());
+                EventReportUtils.report(profileFromStore.getInlongGroupId(),
+                        profileFromStore.getInlongStreamId(), AgentUtils.getCurrentTime(),
+                        EventReportUtils.EVENT_TYPE_CONFIG_UPDATE, EventReportUtils.EVENT_LEVEL_INFO,
+                        EvenCodeEnum.TASK_DELETE, profileFromStore.toJsonStr(),
+                        EvenCodeEnum.TASK_DELETE.getMessage());
                 deleteTask(profileFromStore);
             }
         });
@@ -525,6 +538,14 @@ public class TaskManager extends AbstractDaemon {
 
     public Task getTask(String taskId) {
         return taskMap.get(taskId);
+    }
+
+    public int getInstanceNum() {
+        int num = 0;
+        for (Task task : taskMap.values()) {
+            num += task.getInstanceNum();
+        }
+        return num;
     }
 
     public TaskProfile getTaskProfile(String taskId) {

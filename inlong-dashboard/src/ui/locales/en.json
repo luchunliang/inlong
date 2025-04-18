@@ -907,9 +907,11 @@
   "pages.ClusterTags.TagPlaceholder": "Please enter a tag",
   "pages.ClusterTags.TenantPlaceholder": "Please select a tenant",
   "pages.Login.PleaseEnterUserName": "Please enter user name",
+  "pages.Login.UserNameSpaceNotAllowed": "The username cannot contain spaces, please remove any spaces and try again",
   "pages.Login.PasswordRules": "Only letters, numbers, minus, @, and underscores",
   "pages.Login.Login": "Login",
   "pages.Login.PleaseEnterYourPassword": "Please enter your password",
+  "pages.Login.UserPasswordSpaceNotAllowed": "The username cannot contain spaces, please remove any spaces and try again",
   "pages.UserManagement.DetailModal.Day": "Days",
   "pages.UserManagement.DetailModal.New": "New construction",
   "pages.UserManagement.DetailModal.UserPassword": "Password",
@@ -1056,5 +1058,12 @@
   "meta.Sinks.DirtyData.DirtyType.FieldMappingError":"Field Mapping Error",
   "meta.Sinks.DirtyData.DirtyType.LoadError":"Load Error",
   "meta.Sinks.DirtyData.Search.KeyWordHelp":"Please enter a keyword",
-  "meta.Sinks.DirtyData.Search.KeyWord":"Key word"
+  "meta.Sinks.DirtyData.Search.KeyWord":"Key word",
+  "meta.Sources.COS.DataNode": "Data node",
+  "meta.Sinks.SQL.Sql": "Sql",
+  "meta.Sinks.SQL.JdbcUrl": "JDBC url",
+  "meta.Sinks.SQL.Username": "username",
+  "meta.Sinks.SQL.Password": "password",
+  "meta.Sinks.SQL.FetchSize": "Fetch size",
+  "meta.SQL.Check": "Check failed, please enter the correct SQL connection address"
 }

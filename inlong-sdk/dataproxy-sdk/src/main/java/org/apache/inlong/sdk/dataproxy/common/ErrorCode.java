@@ -53,16 +53,24 @@ public enum ErrorCode {
     PARSE_RMT_CONTENT_IS_NULL(46, "Parse manager content is null"),
     RMT_RETURN_ERROR(47, "Manager return error info"),
     META_FIELD_DATA_IS_NULL(48, "Field data is null"),
-    META_NODE_LIST_IS_EMPTY(49, "Field nodeList is empty"),
-    NODE_LIST_RECORD_INVALID(50, "No valid nodeList records"),
+    META_FIELD_NODE_LIST_NULL(49, "Field nodeList is null"),
+    META_NODE_LIST_IS_EMPTY(50, "Field nodeList is empty"),
     //
-    PARSE_PROXY_META_EXCEPTION(51, "No valid nodeList records"),
-    PARSE_ENCRYPT_META_EXCEPTION(52, "Parse encrypt content failure"),
-    META_REQUIRED_FIELD_NOT_EXIST(53, "Required meta field not exist"),
-    META_FIELD_VALUE_ILLEGAL(54, "Meta field value illegal"),
+    NODE_LIST_RECORD_INVALID(51, "No valid nodeList records"),
+    PARSE_PROXY_META_EXCEPTION(52, "No valid nodeList records"),
+    PARSE_ENCRYPT_META_EXCEPTION(53, "Parse encrypt content failure"),
+    META_REQUIRED_FIELD_NOT_EXIST(54, "Required meta field not exist"),
+    META_FIELD_VALUE_ILLEGAL(55, "Meta field value illegal"),
     //
     FETCH_PROXY_META_FAILURE(59, "Fetch dataproxy meta info failure"),
     FETCH_ENCRYPT_META_FAILURE(60, "Fetch encrypt meta info failure"),
+
+    //
+    INF_REQ_COUNT_REACH_FACTORY_LIMIT(71, "In-flight Request count reach factory limit"),
+    INF_REQ_SIZE_REACH_FACTORY_LIMIT(72, "In-flight Request size reach factory limit"),
+    INF_REQ_COUNT_REACH_SDK_LIMIT(73, "In-flight Request count reach sdk limit"),
+    INF_REQ_SIZE_REACH_SDK_LIMIT(74, "In-flight Request size reach sdk limit"),
+
     //
     NO_NODE_META_INFOS(81, "No proxy node metadata info in local"),
     EMPTY_ACTIVE_NODE_SET(82, "Empty active node set"),
@@ -94,10 +102,9 @@ public enum ErrorCode {
     //
     DP_RECEIVE_FAILURE(160, "DataProxy return message receive failure"),
     //
-    HTTP_ASYNC_POOL_FULL(171, "Http async pool full"),
-    HTTP_ASYNC_OFFER_FAIL(172, "Http async offer event fail"),
-    HTTP_ASYNC_OFFER_EXCEPTION(173, "Http async offer event exception"),
-    HTTP_BUILD_CLIENT_EXCEPTION(174, "Http build client exception"),
+    HTTP_ASYNC_OFFER_FAIL(171, "Http async offer event fail"),
+    HTTP_ASYNC_OFFER_EXCEPTION(172, "Http async offer event exception"),
+    HTTP_BUILD_CLIENT_EXCEPTION(173, "Http build client exception"),
     //
     BUILD_FORM_CONTENT_EXCEPTION(181, "Build form content exception"),
     DP_RETURN_FAILURE(182, "DataProxy return failure"),

@@ -17,7 +17,9 @@
 
 package org.apache.inlong.sdk.dataproxy;
 
+import org.apache.inlong.sdk.dataproxy.common.SdkConsts;
 import org.apache.inlong.sdk.dataproxy.exception.ProxySdkException;
+import org.apache.inlong.sdk.dataproxy.network.PkgCacheQuota;
 import org.apache.inlong.sdk.dataproxy.sender.BaseSender;
 import org.apache.inlong.sdk.dataproxy.sender.http.HttpMsgSenderConfig;
 import org.apache.inlong.sdk.dataproxy.sender.http.InLongHttpMsgSender;
@@ -42,10 +44,15 @@ public class MsgSenderSingleFactory implements MsgSenderFactory {
     private static BaseMsgSenderFactory baseMsgSenderFactory;
 
     public MsgSenderSingleFactory() {
+        this(SdkConsts.UNDEFINED_VALUE, SdkConsts.UNDEFINED_VALUE);
+    }
+
+    public MsgSenderSingleFactory(int factoryPkgCntPermits, int factoryPkgSizeKbPermits) {
         synchronized (singletonRefCounter) {
             if (singletonRefCounter.incrementAndGet() == 1) {
-                baseMsgSenderFactory = new BaseMsgSenderFactory(
-                        this, "iSingleFct-" + refCounter.incrementAndGet());
+                baseMsgSenderFactory = new BaseMsgSenderFactory(this,
+                        "iSingleFct-" + ProxyUtils.getProcessPid() + "-" + refCounter.incrementAndGet(),
+                        factoryPkgCntPermits, factoryPkgSizeKbPermits);
                 initialized.set(true);
             }
         }
@@ -78,12 +85,26 @@ public class MsgSenderSingleFactory implements MsgSenderFactory {
                 || msgSender.getSenderFactory() != this) {
             return;
         }
+        if (baseMsgSenderFactory == null) {
+            return;
+        }
         baseMsgSenderFactory.removeClient(msgSender);
     }
 
     @Override
     public int getMsgSenderCount() {
+        if (baseMsgSenderFactory == null) {
+            return SdkConsts.UNDEFINED_VALUE;
+        }
         return baseMsgSenderFactory.getMsgSenderCount();
+    }
+
+    @Override
+    public PkgCacheQuota getFactoryPkgCacheQuota() {
+        if (baseMsgSenderFactory == null) {
+            return null;
+        }
+        return baseMsgSenderFactory.getPkgCacheQuota();
     }
 
     @Override

@@ -104,10 +104,8 @@ public class COSSourceDTO {
 
     public static COSSourceDTO getFromJson(@NotNull String extParams) {
         try {
-            log.info("teste extparmas={}", extParams);
             return JsonUtils.parseObject(extParams, COSSourceDTO.class);
         } catch (Exception e) {
-            log.info("teste extparmas=eoor:", e);
             throw new BusinessException(ErrorCodeEnum.SOURCE_INFO_INCORRECT,
                     String.format("parse extParams of COSSource failure: %s", e.getMessage()));
         }

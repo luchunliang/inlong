@@ -913,9 +913,11 @@
   "pages.ClusterTags.TagPlaceholder": "请输入标签",
   "pages.ClusterTags.TenantPlaceholder": "请选择租户",
   "pages.Login.PleaseEnterUserName": "请输入用户名",
+  "pages.Login.UserNameSpaceNotAllowed": "用户名不能包含空格，请删除空格后重试",
   "pages.Login.PasswordRules": "只能包含字母、数字、中划线、下划线、@",
   "pages.Login.Login": "登录",
   "pages.Login.PleaseEnterYourPassword": "请输入密码",
+  "pages.Login.UserPasswordSpaceNotAllowed": "密码不能包含空格，请删除空格后重试",
   "pages.UserManagement.DetailModal.Day": "天",
   "pages.UserManagement.DetailModal.New": "新建",
   "pages.UserManagement.DetailModal.UserPassword": "用户密码",
@@ -1062,5 +1064,12 @@
   "meta.Sinks.DirtyData.DirtyType.FieldMappingError":"字段映射错误",
   "meta.Sinks.DirtyData.DirtyType.LoadError":"加载错误",
   "meta.Sinks.DirtyData.Search.KeyWordHelp":"请输入关键字",
-  "meta.Sinks.DirtyData.Search.KeyWord":"关键字"
+  "meta.Sinks.DirtyData.Search.KeyWord":"关键字",
+  "meta.Sources.COS.DataNode": "数据节点",
+  "meta.Sinks.SQL.Sql": "Sql",
+  "meta.Sinks.SQL.JdbcUrl": "JDBC 地址",
+  "meta.Sinks.SQL.Username": "用户名",
+  "meta.Sinks.SQL.Password": "密码",
+  "meta.Sinks.SQL.FetchSize": "捕获大小",
+  "meta.SQL.Check": "校验失败，请输入正确的SQL连接地址"
 }

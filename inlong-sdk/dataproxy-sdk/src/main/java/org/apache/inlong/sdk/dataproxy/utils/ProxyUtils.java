@@ -19,8 +19,6 @@ package org.apache.inlong.sdk.dataproxy.utils;
 
 import org.apache.inlong.common.msg.AttributeConstants;
 import org.apache.inlong.common.msg.MsgType;
-import org.apache.inlong.sdk.dataproxy.common.SdkConsts;
-import org.apache.inlong.sdk.dataproxy.sender.tcp.TcpMsgSenderConfig;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -31,8 +29,8 @@ import java.lang.management.ManagementFactory;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -150,119 +148,35 @@ public class ProxyUtils {
         return protocol + ":" + regionName + ":" + groupId;
     }
 
-    public static boolean isAttrKeysValid(Map<String, String> attrsMap) {
-        if (attrsMap == null || attrsMap.size() == 0) {
-            return false;
+    /**
+     * get valid attrs, remove invalid attrs
+     * @param attrsMap the input attrs
+     * @return valid attrs
+     */
+    public static Map<String, String> getValidAttrs(Map<String, String> attrsMap) {
+        if (attrsMap == null || attrsMap.isEmpty()) {
+            return attrsMap;
         }
-        for (String key : attrsMap.keySet()) {
-            if (SdkReservedWords.contains(key)) {
-                logger.error("the attributes is invalid ,please check ! {}", key);
-                return false;
+        String tmpValue;
+        Map<String, String> validAttrsMap = new HashMap<>();
+        for (Map.Entry<String, String> entry : attrsMap.entrySet()) {
+            if (StringUtils.isBlank(entry.getKey())
+                    || entry.getKey().contains(AttributeConstants.SEPARATOR)
+                    || entry.getKey().contains(AttributeConstants.KEY_VALUE_SEPARATOR)) {
+                continue;
             }
-        }
-        return true;
-    }
-
-    public static boolean isDtValid(long dt) {
-        if (String.valueOf(dt).length() != TIME_LENGTH) {
-            logger.error("dt {} is error", dt);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * check body valid
-     *
-     * @param body
-     * @return
-     */
-    public static boolean isBodyValid(byte[] body) {
-        if (body == null || body.length == 0) {
-            logger.error("body is error {}", body);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * check body valid
-     *
-     * @param bodyList
-     * @return
-     */
-    public static boolean isBodyValid(List<byte[]> bodyList) {
-        if (bodyList == null || bodyList.size() == 0) {
-            logger.error("body  is error");
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Check if the body length exceeds the maximum limit, if the maximum limit is less than 0, it is not checked
-     * @param body
-     * @param maxLen
-     * @return
-     */
-    public static boolean isBodyLengthValid(byte[] body, int maxLen) {
-        // Not valid if the maximum limit is less than or equal to 0
-        if (maxLen < 0) {
-            return true;
-        }
-        // Reserve space for attribute
-        if (body.length > maxLen - SdkConsts.RESERVED_ATTRIBUTE_LENGTH) {
-            logger.debug("body length({}) > max length({}) - fixed attribute length({})",
-                    body.length, maxLen, SdkConsts.RESERVED_ATTRIBUTE_LENGTH);
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Check if the total body length exceeds the maximum limit, if the maximum limit is less than 0, it is not checked
-     * @param bodyList
-     * @param maxLen
-     * @return
-     */
-    public static boolean isBodyLengthValid(List<byte[]> bodyList, int maxLen) {
-        // Not valid if the maximum limit is less than or equal to 0
-        if (maxLen < 0) {
-            return true;
-        }
-        int size = 0;
-        for (byte[] body : bodyList) {
-            size += body.length;
-        }
-        // Reserve space for attribute
-        if (size > maxLen - SdkConsts.RESERVED_ATTRIBUTE_LENGTH) {
-            logger.debug("bodyList length({}) > max length({}) - fixed attribute length({})",
-                    size, maxLen, SdkConsts.RESERVED_ATTRIBUTE_LENGTH);
-            return false;
-        }
-        return true;
-    }
-
-    public static long covertZeroDt(long dt) {
-        if (dt == 0) {
-            return System.currentTimeMillis();
-        }
-        return dt;
-    }
-
-    /**
-     * valid client config
-     *
-     * @param tcpConfig
-     */
-    public static void validClientConfig(TcpMsgSenderConfig tcpConfig) {
-        if (tcpConfig.isEnableMgrAuthz()) {
-            if (StringUtils.isBlank(tcpConfig.getMgrAuthSecretId())) {
-                throw new IllegalArgumentException("Authentication require secretId not Blank!");
+            tmpValue = entry.getKey().trim();
+            if (ProxyUtils.SdkReservedWords.contains(tmpValue)) {
+                continue;
             }
-            if (StringUtils.isBlank(tcpConfig.getMgrAuthSecretKey())) {
-                throw new IllegalArgumentException("Authentication require secretKey not Blank!");
+            if (entry.getValue() != null) {
+                if (entry.getValue().contains(AttributeConstants.SEPARATOR)
+                        || entry.getValue().contains(AttributeConstants.KEY_VALUE_SEPARATOR)) {
+                    continue;
+                }
             }
+            validAttrsMap.put(tmpValue, entry.getValue());
         }
+        return validAttrsMap;
     }
 }

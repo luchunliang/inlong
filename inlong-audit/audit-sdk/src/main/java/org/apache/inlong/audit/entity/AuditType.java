@@ -34,8 +34,11 @@ public enum AuditType {
     POSTGRES("Postgres"),
     BINLOG("MYSQL_BINLOG"),
     TUBEMQ("TubeMQ"),
-    MYSQL("MYSQL_SQL"),
-    HDFS("HDFS");
+    MYSQL("MYSQL"),
+    HDFS("HDFS"),
+    TDSQL_MYSQL("TDSQL_MYSQL"),
+    BSS("BSS"),
+    ICEBERG_AO("ICEBERG_AO");
 
     private final String auditType;
 
