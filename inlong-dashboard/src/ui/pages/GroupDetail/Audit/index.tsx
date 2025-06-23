@@ -31,20 +31,56 @@ import {
   getTableColumns,
   timeStaticsDimList,
 } from './config';
-import { Table } from 'antd';
+import { Table, Radio, Tabs, TabsProps } from 'antd';
 import i18n from '@/i18n';
-
+import './index.less';
+import { startCase } from 'lodash';
 type Props = CommonInterface;
-
+const initialQuery = {
+  inlongStreamId: null,
+  startDate: +new Date(),
+  endDate: +new Date(),
+  timeStaticsDim: timeStaticsDimList[0].value,
+  sinkId: null,
+  sinkType: null,
+};
 const Comp: React.FC<Props> = ({ inlongGroupId }) => {
   const [form] = useForm();
-  const [query, setQuery] = useState({
-    inlongStreamId: '',
-    startDate: +new Date(),
-    endDate: +new Date(),
-    timeStaticsDim: timeStaticsDimList[0].value,
-  });
-  const [inlongStreamID, setInlongStreamID] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [inlongStreamID, setInlongStreamID] = useState(null);
+  const [type, setType] = useState('count');
+  const [subTab, setSubTab] = useState('stream');
+
+  const onDataStreamSuccess = data => {
+    const defaultDataStream = data[0]?.value;
+    if (defaultDataStream) {
+      setInlongStreamID(defaultDataStream);
+      form.setFieldsValue({ inlongStreamId: defaultDataStream });
+      setQuery(prev => ({ ...prev, inlongStreamId: defaultDataStream }));
+    }
+  };
+
+  const { data: streamList } = useRequest(
+    {
+      url: '/stream/list',
+      method: 'POST',
+      data: {
+        pageNum: 1,
+        pageSize: 9999,
+        inlongGroupId,
+      },
+    },
+    {
+      refreshDeps: [inlongGroupId],
+      formatResult: result =>
+        result?.list.map(item => ({
+          label: item.inlongStreamId,
+          value: item.inlongStreamId,
+        })) || [],
+      onSuccess: onDataStreamSuccess,
+    },
+  );
+
   const { data: sourceData = [], run } = useRequest(
     {
       url: '/audit/list',
@@ -54,10 +90,19 @@ const Comp: React.FC<Props> = ({ inlongGroupId }) => {
         startDate: timestampFormat(query.startDate, 'yyyy-MM-dd'),
         endDate: timestampFormat(query.endDate, 'yyyy-MM-dd'),
         inlongGroupId,
+        inlongStreamId: inlongStreamID,
       },
     },
     {
-      ready: Boolean(query.inlongStreamId),
+      ready: !!(subTab === 'group' || (subTab === 'stream' && inlongStreamID)),
+      refreshDeps: [
+        query.sinkId,
+        query.sinkType,
+        query.endDate,
+        query.startDate,
+        query.timeStaticsDim,
+        inlongStreamID,
+      ],
       formatResult: result => result.sort((a, b) => (a.auditId - b.auditId > 0 ? 1 : -1)),
     },
   );
@@ -79,36 +124,43 @@ const Comp: React.FC<Props> = ({ inlongGroupId }) => {
         const bT = +new Date(query.timeStaticsDim === 'HOUR' ? `${b.logTs}:00` : b.logTs);
         return aT - bT;
       });
-    const output = flatArr.reduce((acc, cur) => {
-      if (!acc[cur.logTs]) {
-        acc[cur.logTs] = {};
-      }
-      acc[cur.logTs] = {
-        ...acc[cur.logTs],
-        [cur.auditId]: cur.count,
-      };
-      return acc;
-    }, {});
+    let output: any;
+    if (type === 'count') {
+      output = flatArr.reduce((acc, cur) => {
+        if (!acc[cur.logTs]) {
+          acc[cur.logTs] = {};
+        }
+        acc[cur.logTs] = {
+          ...acc[cur.logTs],
+          [cur.auditId]: cur.count,
+        };
+        return acc;
+      }, {});
+    } else {
+      output = flatArr.reduce((acc, cur) => {
+        if (!acc[cur.logTs]) {
+          acc[cur.logTs] = {};
+        }
+        acc[cur.logTs] = {
+          ...acc[cur.logTs],
+          [cur.auditId]: cur.size,
+        };
+        return acc;
+      }, {});
+    }
     return output;
-  }, [sourceData, query.timeStaticsDim]);
+  }, [sourceData, query.timeStaticsDim, type]);
 
   const onSearch = async () => {
     let values = await form.validateFields();
     if (values.timeStaticsDim == 'MINUTE') {
       setQuery(prev => ({ ...prev, endDate: prev.startDate }));
+    } else {
+      setQuery(values);
     }
     run();
   };
 
-  const onDataStreamSuccess = data => {
-    const defaultDataStream = data[0]?.value;
-    if (defaultDataStream) {
-      setInlongStreamID(defaultDataStream);
-      form.setFieldsValue({ inlongStreamId: defaultDataStream });
-      setQuery(prev => ({ ...prev, inlongStreamId: defaultDataStream }));
-      run();
-    }
-  };
   const numToName = useCallback(
     num => {
       let obj = {};
@@ -146,9 +198,32 @@ const Comp: React.FC<Props> = ({ inlongGroupId }) => {
   const [fileName, setFileName] = useState('audit.csv');
   useEffect(() => {
     setFileName(`audit_${inlongGroupId}_${inlongStreamID}.csv`);
+    form.setFieldsValue({ sinkId: '' });
   }, [inlongGroupId, inlongStreamID]);
+
+  const onChange = e => {
+    const tmp = { ...query };
+    if (e.target.value === 'group') {
+      tmp.inlongStreamId = null;
+      tmp.sinkId = null;
+      setInlongStreamID(undefined);
+    } else {
+      tmp.sinkType = null;
+      tmp.inlongStreamId = streamList?.[0]?.value;
+      setInlongStreamID(streamList?.[0]?.value);
+    }
+    setQuery(tmp);
+    setSubTab(e.target.value);
+  };
+
   return (
     <>
+      <div style={{ marginBottom: 20 }}>
+        <Radio.Group defaultValue={subTab} buttonStyle="solid" onChange={e => onChange(e)}>
+          <Radio.Button value="group">{i18n.t('pages.GroupDetail.Audit.Group')}</Radio.Button>
+          <Radio.Button value="stream">{i18n.t('pages.GroupDetail.Audit.Stream')}</Radio.Button>
+        </Radio.Group>
+      </div>
       <div style={{ marginBottom: 40 }}>
         <FormGenerator
           form={form}
@@ -157,12 +232,13 @@ const Comp: React.FC<Props> = ({ inlongGroupId }) => {
             inlongGroupId,
             query,
             onSearch,
-            onDataStreamSuccess,
+            streamList,
             sourceData,
             csvData,
             fileName,
             setInlongStreamID,
             inlongStreamID,
+            subTab,
           )}
           style={{ marginBottom: 30, gap: 10 }}
           onFilter={allValues =>
@@ -173,30 +249,50 @@ const Comp: React.FC<Props> = ({ inlongGroupId }) => {
             })
           }
         />
-        <Charts height={400} option={toChartData(sourceData, sourceDataMap)} forceUpdate={true} />
       </div>
-
-      <HighTable
-        table={{
-          columns: getTableColumns(sourceData, query.timeStaticsDim),
-          dataSource: toTableData(sourceData, sourceDataMap),
-          rowKey: 'logTs',
-          summary: () => (
-            <Table.Summary fixed>
-              <Table.Summary.Row>
-                <Table.Summary.Cell index={0}>
-                  {i18n.t('pages.GroupDetail.Audit.Total')}
-                </Table.Summary.Cell>
-                {sourceData.map((row, index) => (
-                  <Table.Summary.Cell index={index + 1}>
-                    {row.auditSet.reduce((total, item) => total + item.count, 0).toLocaleString()}
-                  </Table.Summary.Cell>
-                ))}
-              </Table.Summary.Row>
-            </Table.Summary>
-          ),
-        }}
-      />
+      <div className="audit-container">
+        <div className="chart-type">
+          <Radio.Group
+            defaultValue="count"
+            buttonStyle="solid"
+            onChange={e => setType(e.target.value)}
+          >
+            <Radio.Button value="size">{i18n.t('pages.GroupDetail.Audit.Size')}</Radio.Button>
+            <Radio.Button value="count">{i18n.t('pages.GroupDetail.Audit.Count')}</Radio.Button>
+          </Radio.Group>
+        </div>
+        <div className="chart-container">
+          <Charts height={400} option={toChartData(sourceData, sourceDataMap)} forceUpdate={true} />
+        </div>
+        <div className="table-container">
+          <HighTable
+            table={{
+              columns: getTableColumns(sourceData, query.timeStaticsDim),
+              dataSource: toTableData(sourceData, sourceDataMap),
+              rowKey: 'logTs',
+              pagination: {
+                pageSizeOptions: ['10', '20', '50', '60', '100', '120'],
+              },
+              summary: () => (
+                <Table.Summary fixed>
+                  <Table.Summary.Row>
+                    <Table.Summary.Cell index={0}>
+                      {i18n.t('pages.GroupDetail.Audit.Total')}
+                    </Table.Summary.Cell>
+                    {sourceData.map((row, index) => (
+                      <Table.Summary.Cell index={index + 1}>
+                        {row.auditSet
+                          .reduce((total, item) => total + item.count, 0)
+                          .toLocaleString()}
+                      </Table.Summary.Cell>
+                    ))}
+                  </Table.Summary.Row>
+                </Table.Summary>
+              ),
+            }}
+          />
+        </div>
+      </div>
     </>
   );
 };

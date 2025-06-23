@@ -15,19 +15,11 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.sdk.sort.api;
+package org.apache.inlong.audit.service.except;
 
-public abstract class SortClient {
+public class QueryAuditException extends RuntimeException {
 
-    public abstract boolean init() throws Throwable;
-
-    public abstract void ack(String msgKey, String msgOffset)
-            throws Exception;
-
-    public abstract boolean close();
-
-    public abstract SortClientConfig getConfig();
-
-    public abstract void negativeAck(String msgKey, String msgOffset)
-            throws Exception;
+    public QueryAuditException(String message) {
+        super(message);
+    }
 }
