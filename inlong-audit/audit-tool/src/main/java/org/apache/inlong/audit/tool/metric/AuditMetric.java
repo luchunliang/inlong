@@ -15,26 +15,23 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.client.api.service;
+package org.apache.inlong.audit.tool.metric;
 
-import org.apache.inlong.manager.pojo.audit.AuditRequest;
-import org.apache.inlong.manager.pojo.audit.AuditVO;
-import org.apache.inlong.manager.pojo.common.Response;
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Gauge;
 
-import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
+public class AuditMetric {
 
-import java.util.List;
+    private final Gauge sourceAndSinkAuditDiffMetric;
 
-public interface AuditApi {
+    public AuditMetric(CollectorRegistry registry) {
+        this.sourceAndSinkAuditDiffMetric = Gauge.build()
+                .name("inlong_source_sink_diff")
+                .help("The difference in count between inflow and outflow")
+                .register(registry);
+    }
 
-    @POST("audit/list")
-    Call<Response<List<AuditVO>>> list(@Body AuditRequest auditRequest);
-
-    @POST("audit/listAll")
-    Call<Response<List<AuditVO>>> listAll(@Body AuditRequest auditRequest);
-
-    @POST("audit/refreshCache")
-    Call<Response<Boolean>> refreshCache();
+    public void updateSourceAndSinkAuditDiffMetric(double diff) {
+        sourceAndSinkAuditDiffMetric.set(diff);
+    }
 }

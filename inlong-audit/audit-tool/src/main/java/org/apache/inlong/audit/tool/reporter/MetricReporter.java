@@ -15,26 +15,12 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.client.api.service;
+package org.apache.inlong.audit.tool.reporter;
 
-import org.apache.inlong.manager.pojo.audit.AuditRequest;
-import org.apache.inlong.manager.pojo.audit.AuditVO;
-import org.apache.inlong.manager.pojo.common.Response;
+import java.util.Map;
 
-import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
+public interface MetricReporter {
 
-import java.util.List;
+    void init(Map<String, Object> config);
 
-public interface AuditApi {
-
-    @POST("audit/list")
-    Call<Response<List<AuditVO>>> list(@Body AuditRequest auditRequest);
-
-    @POST("audit/listAll")
-    Call<Response<List<AuditVO>>> listAll(@Body AuditRequest auditRequest);
-
-    @POST("audit/refreshCache")
-    Call<Response<Boolean>> refreshCache();
 }

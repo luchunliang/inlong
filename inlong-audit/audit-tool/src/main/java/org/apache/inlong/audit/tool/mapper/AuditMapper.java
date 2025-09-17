@@ -15,26 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.client.api.service;
+package org.apache.inlong.audit.tool.mapper;
 
-import org.apache.inlong.manager.pojo.audit.AuditRequest;
-import org.apache.inlong.manager.pojo.audit.AuditVO;
-import org.apache.inlong.manager.pojo.common.Response;
+import org.apache.inlong.audit.tool.entity.AuditMetric;
 
-import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
-public interface AuditApi {
+@Mapper
+public interface AuditMapper {
 
-    @POST("audit/list")
-    Call<Response<List<AuditVO>>> list(@Body AuditRequest auditRequest);
-
-    @POST("audit/listAll")
-    Call<Response<List<AuditVO>>> listAll(@Body AuditRequest auditRequest);
-
-    @POST("audit/refreshCache")
-    Call<Response<Boolean>> refreshCache();
+    @Select("select inlong_group_id as inlongGroupId,inlong_stream_id as inlongStreamId, sum(count) count" +
+            " from audit_data where audit_id = #{audit_id}" +
+            " and log_ts between #{startLogTs} and #{endLogTs} group by inlong_group_id,inlong_stream_id")
+    List<AuditMetric> getAuditMetrics(@Param("startLogTs") String startLogTs, @Param("endLogTs") String endLogTs,
+            @Param("audit_id") String auditId);
 }

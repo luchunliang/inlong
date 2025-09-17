@@ -15,26 +15,15 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.client.api.service;
+package org.apache.inlong.audit.tool.entity;
 
-import org.apache.inlong.manager.pojo.audit.AuditRequest;
-import org.apache.inlong.manager.pojo.audit.AuditVO;
-import org.apache.inlong.manager.pojo.common.Response;
+import lombok.Data;
 
-import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
+@Data
+public class AuditMetric {
 
-import java.util.List;
+    private String inlongGroupId;
+    private String inlongStreamId;
+    private long count;
 
-public interface AuditApi {
-
-    @POST("audit/list")
-    Call<Response<List<AuditVO>>> list(@Body AuditRequest auditRequest);
-
-    @POST("audit/listAll")
-    Call<Response<List<AuditVO>>> listAll(@Body AuditRequest auditRequest);
-
-    @POST("audit/refreshCache")
-    Call<Response<Boolean>> refreshCache();
 }

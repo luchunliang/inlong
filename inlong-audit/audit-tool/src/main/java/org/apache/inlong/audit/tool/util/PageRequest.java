@@ -15,26 +15,31 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.client.api.service;
+package org.apache.inlong.audit.tool.util;
 
-import org.apache.inlong.manager.pojo.audit.AuditRequest;
-import org.apache.inlong.manager.pojo.audit.AuditVO;
-import org.apache.inlong.manager.pojo.common.Response;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
 
-import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
+/**
+ * Pagination request
+ */
+@Data
+@ApiModel(value = "Pagination request")
+public class PageRequest {
 
-import java.util.List;
+    public static final Integer MAX_PAGE_SIZE = 100;
 
-public interface AuditApi {
+    @ApiModelProperty(value = "Current page number, default is 1")
+    private int pageNum = 1;
 
-    @POST("audit/list")
-    Call<Response<List<AuditVO>>> list(@Body AuditRequest auditRequest);
+    @ApiModelProperty(value = "Page size, default is 10")
+    private int pageSize = 10;
 
-    @POST("audit/listAll")
-    Call<Response<List<AuditVO>>> listAll(@Body AuditRequest auditRequest);
+    @ApiModelProperty(value = "Order field, support create_time and modify_time, default is create_time")
+    private String orderField = "create_time";
 
-    @POST("audit/refreshCache")
-    Call<Response<Boolean>> refreshCache();
+    @ApiModelProperty(value = "Order type, only support asc and desc, default is desc")
+    private String orderType = "desc";
+
 }

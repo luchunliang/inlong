@@ -15,26 +15,31 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.manager.client.api.service;
+package org.apache.inlong.audit.tool.util;
 
-import org.apache.inlong.manager.pojo.audit.AuditRequest;
-import org.apache.inlong.manager.pojo.audit.AuditVO;
-import org.apache.inlong.manager.pojo.common.Response;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
 
-import retrofit2.Call;
-import retrofit2.http.Body;
-import retrofit2.http.POST;
-
+import java.io.Serializable;
 import java.util.List;
 
-public interface AuditApi {
+@Data
+@JsonIgnoreProperties(ignoreUnknown = true)
+@ApiModel("Paginated query results")
+public final class PageResult<T> implements Serializable {
 
-    @POST("audit/list")
-    Call<Response<List<AuditVO>>> list(@Body AuditRequest auditRequest);
+    @ApiModelProperty(value = "data record", required = true)
+    private List<T> list;
 
-    @POST("audit/listAll")
-    Call<Response<List<AuditVO>>> listAll(@Body AuditRequest auditRequest);
+    @ApiModelProperty(value = "The total number of items matching the filter criteria", required = true)
+    private Long total;
 
-    @POST("audit/refreshCache")
-    Call<Response<Boolean>> refreshCache();
+    @ApiModelProperty(value = "pageSize", required = true)
+    private Integer pageSize;
+
+    @ApiModelProperty(value = "pageNum", required = true)
+    private Integer pageNum;
+
 }
