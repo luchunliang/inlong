@@ -86,6 +86,23 @@ After the build process finished, you can import the package (`import inlong_dat
 
 > **Note**: When the C++ SDK or the version of Python you're using is updated, you'll need to rebuild it using either of the above methods (Native Build or Docker Build).
 
+### Method 3: PEP 517 Build
+
+1. Build the C++ SDK. see [dataproxy-sdk-cpp/README.md](../dataproxy-sdk-cpp/README.md)  
+
+2. Copy `dataproxy-sdk-cpp` dir into `dataproxy-sdk-python`  
+   ```bash
+   cp -r ../dataproxy-sdk-cpp ./
+   ```
+
+3. Go to the `dataproxy-sdk-python` directory, build the Python SDK  
+   ```bash
+   python3 -m pip install build
+   python3 -m build
+   ```
+
+Also, you can refer [dataproxy-sdk-docker/README.md](../dataproxy-sdk-docker/README.md) to build python sdk wheels for manylinux.  
+
 ## Config Parameters
 
 Refer to `demo/config_example.json`.
@@ -93,7 +110,7 @@ Refer to `demo/config_example.json`.
 | name                     | default value                                                      | description                                                                                                |
 |:-------------------------|:-------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------|
 | thread_num               | 10                                                                 | number of network sending threads                                                                          |
-| inlong_group_ids         | ""                                                                 | the list of inlong_group_id, seperated by commas, such as "b_inlong_group_test_01, b_inlong_group_test_02" |
+| inlong_group_ids         | ""                                                                 | the list of inlong_group_id, separated by commas, such as "b_inlong_group_test_01, b_inlong_group_test_02" |
 | enable_groupId_isolation | false                                                              | whether different groupid data using different buffer pools inside the sdk                                 |
 | buffer_num_per_groupId   | 5                                                                  | number of buffer pools of each groupid                                                                     |
 | enable_pack              | true                                                               | whether multiple messages are packed while sending to dataproxy                                            |
