@@ -80,7 +80,8 @@ public class PbSourceDecoder extends SourceDecoder<String> {
             Descriptors.FileDescriptor fileDescriptor = Descriptors.FileDescriptor.buildFrom(fileDesc,
                     new Descriptors.FileDescriptor[]{});
             // find root
-            this.rootDesc = fileDescriptor.findMessageTypeByName(rootMessageType);
+            String fullRootMessageType = formatTypeName(findRootType(descriptorSet, rootMessageType));
+            this.rootDesc = fileDescriptor.findMessageTypeByName(fullRootMessageType);
             // child
             this.rowsNodePath = sourceInfo.getRowsNodePath();
             this.childNodes = PbNode.parseNodePath(rootDesc, rowsNodePath);
@@ -192,14 +193,14 @@ public class PbSourceDecoder extends SourceDecoder<String> {
             return;
         }
         DescriptorProtos.DescriptorProto.Builder typeBuilder = DescriptorProtos.DescriptorProto.newBuilder();
-        String newTypeName = typeName.substring(1).replace('.', '_');
+        String newTypeName = formatTypeName(typeName);
         typeBuilder.setName(newTypeName);
         for (DescriptorProtos.FieldDescriptorProto fieldDesc : typeDesc.getFieldList()) {
             DescriptorProtos.FieldDescriptorProto.Builder fieldBuilder = DescriptorProtos.FieldDescriptorProto
                     .newBuilder().mergeFrom(fieldDesc);
             if (fieldDesc.getType().equals(FieldDescriptorProto.Type.TYPE_MESSAGE)) {
                 String fieldTypeName = fieldDesc.getTypeName();
-                String newFieldTypeName = fieldTypeName.substring(1).replace('.', '_');
+                String newFieldTypeName = formatTypeName(fieldTypeName);
                 fieldBuilder.setTypeName(newFieldTypeName);
                 if (!addedTypeNames.contains(newFieldTypeName)) {
                     addedTypeNames.add(newFieldTypeName);
@@ -208,7 +209,7 @@ public class PbSourceDecoder extends SourceDecoder<String> {
                 }
             } else if (fieldDesc.getType().equals(FieldDescriptorProto.Type.TYPE_ENUM)) {
                 String fieldTypeName = fieldDesc.getTypeName();
-                String newFieldTypeName = fieldTypeName.substring(1).replace('.', '_');
+                String newFieldTypeName = formatTypeName(fieldTypeName);
                 fieldBuilder.setTypeName(newFieldTypeName);
                 if (!addedTypeNames.contains(newFieldTypeName)) {
                     addedTypeNames.add(newFieldTypeName);
@@ -230,9 +231,13 @@ public class PbSourceDecoder extends SourceDecoder<String> {
         }
         DescriptorProtos.EnumDescriptorProto.Builder typeBuilder = DescriptorProtos.EnumDescriptorProto.newBuilder()
                 .mergeFrom(typeDesc);
-        String newTypeName = typeName.substring(1).replace('.', '_');
+        String newTypeName = formatTypeName(typeName);
         typeBuilder.setName(newTypeName);
         newFileBuilder.addEnumType(typeBuilder.build());
+    }
+
+    private static String formatTypeName(String typeName) {
+        return typeName.substring(1).replace('.', '_');
     }
 
     private static String findRootType(DescriptorProtos.FileDescriptorSet descriptorSet,
