@@ -37,30 +37,52 @@ public class PbNode {
     private String name;
     private FieldDescriptor fieldDesc;
     private Descriptors.Descriptor messageType;
+    private boolean isLastNode = false;
     private boolean isArray = false;
     private int arrayIndex = -1;
-    private boolean isLastNode = false;
+    private boolean isMap = false;
+    private String mapKey = "";
+    private FieldDescriptor mapKeyDesc;
+    private FieldDescriptor mapValueDesc;
 
     public PbNode(Descriptors.Descriptor messageDesc, String nodeString, boolean isLastNode) {
         int beginIndex = nodeString.indexOf('(');
         if (beginIndex < 0) {
             this.name = nodeString;
-            this.fieldDesc = messageDesc.findFieldByName(name);
-            if (this.fieldDesc.getJavaType() == JavaType.MESSAGE) {
-                this.messageType = this.fieldDesc.getMessageType();
+            if (isMapDescriptor(messageDesc)) {
+                FieldDescriptor valueFieldDesc = messageDesc.getFields().get(1);
+                Descriptors.Descriptor valueTypeDesc = valueFieldDesc.getMessageType();
+                this.fieldDesc = valueTypeDesc.findFieldByName(name);
+                if (this.fieldDesc.getJavaType() == JavaType.MESSAGE) {
+                    this.messageType = this.fieldDesc.getMessageType();
+                }
+            } else {
+                this.fieldDesc = messageDesc.findFieldByName(name);
+                if (this.fieldDesc.getJavaType() == JavaType.MESSAGE) {
+                    this.messageType = this.fieldDesc.getMessageType();
+                }
             }
         } else {
             this.name = StringUtils.trim(nodeString.substring(0, beginIndex));
             this.fieldDesc = messageDesc.findFieldByName(name);
             if (this.fieldDesc.getJavaType() == JavaType.MESSAGE) {
                 this.messageType = this.fieldDesc.getMessageType();
-            }
-            int endIndex = nodeString.lastIndexOf(')');
-            if (endIndex >= 0) {
-                this.isArray = true;
-                this.arrayIndex = NumberUtils.toInt(nodeString.substring(beginIndex + 1, endIndex), -1);
-                if (this.arrayIndex < 0) {
-                    this.arrayIndex = 0;
+                int endIndex = nodeString.lastIndexOf(')');
+                if (isMapDescriptor(messageType)) {
+                    this.isMap = true;
+                    if (endIndex >= 0) {
+                        this.mapKey = nodeString.substring(beginIndex + 1, endIndex);
+                        this.mapKeyDesc = messageType.getFields().get(0);
+                        this.mapValueDesc = messageType.getFields().get(1);
+                    }
+                } else {
+                    this.isArray = true;
+                    if (endIndex >= 0) {
+                        this.arrayIndex = NumberUtils.toInt(nodeString.substring(beginIndex + 1, endIndex), -1);
+                        if (this.arrayIndex < 0) {
+                            this.arrayIndex = 0;
+                        }
+                    }
                 }
             }
         }
@@ -91,5 +113,23 @@ public class PbNode {
             nodes.add(pbNode);
         }
         return nodes;
+    }
+
+    public static boolean isMapDescriptor(Descriptors.Descriptor descriptor) {
+        if (descriptor.getOptions().getMapEntry()) {
+            return true;
+        }
+
+        if (descriptor.getFields().size() == 2) {
+            Descriptors.FieldDescriptor keyField = descriptor.findFieldByNumber(1);
+            Descriptors.FieldDescriptor valueField = descriptor.findFieldByNumber(2);
+
+            if (keyField != null && valueField != null &&
+                    "key".equals(keyField.getName()) &&
+                    "value".equals(valueField.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
