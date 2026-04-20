@@ -184,6 +184,7 @@ public class PbSourceData extends AbstractSourceData {
      * @param root
      * @return
      */
+    @SuppressWarnings("rawtypes")
     private String getNodeValue(List<PbNode> childNodes, DynamicMessage root) {
         String fieldValue = "";
         DynamicMessage current = root;
@@ -212,33 +213,42 @@ public class PbSourceData extends AbstractSourceData {
                         fieldValue = String.valueOf(nodeValue);
                         break;
                     case MESSAGE:
-                        fieldValue = String.valueOf(nodeValue);
+                        if (node.isArray()) {
+                            fieldValue = String.valueOf(((List) nodeValue).get(node.getArrayIndex()));
+                        } else if (node.isMap()) {
+                            List<DynamicMessage> nodeValueList = (List<DynamicMessage>) nodeValue;
+                            for (DynamicMessage subnodeValue : nodeValueList) {
+                                String keyValue = String.valueOf(subnodeValue.getField(node.getMapKeyDesc()));
+                                if (StringUtils.equals(keyValue, node.getMapKey())) {
+                                    fieldValue = String.valueOf(subnodeValue.getField(node.getMapValueDesc()));
+                                    break;
+                                }
+                            }
+                        } else {
+                            fieldValue = String.valueOf(nodeValue);
+                        }
                         break;
                 }
                 break;
             }
-            if (!node.isArray()) {
-                if (!(nodeValue instanceof DynamicMessage)) {
-                    // error data
-                    break;
+            if (node.isArray()) {
+                current = (DynamicMessage) ((List) nodeValue).get(node.getArrayIndex());
+            } else if (node.isMap()) {
+                List<DynamicMessage> nodeValueList = (List<DynamicMessage>) nodeValue;
+                DynamicMessage newCurrent = null;
+                for (DynamicMessage subnodeValue : nodeValueList) {
+                    String keyValue = String.valueOf(subnodeValue.getField(node.getMapKeyDesc()));
+                    if (StringUtils.equals(keyValue, node.getMapKey())) {
+                        newCurrent = (DynamicMessage) subnodeValue.getField(node.getMapValueDesc());
+                        break;
+                    }
                 }
-                current = (DynamicMessage) nodeValue;
+                if (newCurrent == null) {
+                    return fieldValue;
+                }
+                current = newCurrent;
             } else {
-                if (!(nodeValue instanceof List)) {
-                    // error data
-                    break;
-                }
-                List<?> nodeList = (List<?>) nodeValue;
-                if (node.getArrayIndex() >= nodeList.size()) {
-                    // error data
-                    break;
-                }
-                Object nodeElement = nodeList.get(node.getArrayIndex());
-                if (!(nodeElement instanceof DynamicMessage)) {
-                    // error data
-                    break;
-                }
-                current = (DynamicMessage) nodeElement;
+                current = (DynamicMessage) nodeValue;
             }
         }
         return fieldValue;
