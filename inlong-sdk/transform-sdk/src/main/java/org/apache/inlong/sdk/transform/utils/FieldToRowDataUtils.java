@@ -279,8 +279,8 @@ public class FieldToRowDataUtils {
             if (obj == null) {
                 return null;
             }
-            if (obj instanceof String) {
-                return obj;
+            if (obj instanceof byte[]) {
+                return StringData.fromString(new String((byte[]) obj));
             }
             return StringData.fromString(String.valueOf(obj));
         } catch (RuntimeException e) {

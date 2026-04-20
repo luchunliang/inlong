@@ -48,6 +48,8 @@ public abstract class SinkEncoder<Output> {
     protected String formatFieldValue(Object fieldValue) {
         if (fieldValue == null) {
             return null;
+        } else if (fieldValue instanceof byte[]) {
+            return new String((byte[]) fieldValue);
         }
         return String.valueOf(fieldValue);
     }
