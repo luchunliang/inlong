@@ -41,6 +41,7 @@ public class PbNode {
     private boolean isArray = false;
     private int arrayIndex = -1;
     private boolean isMap = false;
+    private boolean isMapType = false;
     private String mapKey = "";
     private FieldDescriptor mapKeyDesc;
     private FieldDescriptor mapValueDesc;
@@ -60,6 +61,9 @@ public class PbNode {
                 this.fieldDesc = messageDesc.findFieldByName(name);
                 if (this.fieldDesc.getJavaType() == JavaType.MESSAGE) {
                     this.messageType = this.fieldDesc.getMessageType();
+                    if (isMapDescriptor(messageType)) {
+                        this.isMapType = true;
+                    }
                 }
             }
         } else {

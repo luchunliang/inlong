@@ -223,7 +223,7 @@ public class PbSourceData extends AbstractSourceData {
             }
             // last node
             if (node.isArray()) {
-                return buildFieldValue(node.getFieldDesc(), ((List) nodeValue).get(node.getArrayIndex()));
+                return buildStructData(node.getMessageType(), ((List) nodeValue).get(node.getArrayIndex()));
             } else if (node.isMap()) {
                 List<DynamicMessage> nodeValueList = (List<DynamicMessage>) nodeValue;
                 Object fieldValue = null;
@@ -234,23 +234,25 @@ public class PbSourceData extends AbstractSourceData {
                         break;
                     }
                 }
-                return this.buildFieldValue(node.getFieldDesc(), fieldValue);
+                return this.buildFieldValue(node.getFieldDesc(), fieldValue, false);
+            } else if (node.isMapType()) {
+                return this.buildStructData(node.getMessageType(), nodeValue);
             } else if (node.getFieldDesc().isRepeated()) {
                 List<Object> valueList = (List) nodeValue;
                 List<Object> result = new ArrayList<>(valueList.size());
                 for (Object value : valueList) {
-                    result.add(this.buildFieldValue(node.getFieldDesc(), value));
+                    result.add(this.buildFieldValue(node.getFieldDesc(), value, false));
                 }
                 return new GenericArrayData(result.toArray());
             } else {
-                return this.buildFieldValue(node.getFieldDesc(), nodeValue);
+                return this.buildFieldValue(node.getFieldDesc(), nodeValue, false);
             }
         }
         return null;
     }
 
     @SuppressWarnings("unchecked")
-    private Object buildFieldValue(FieldDescriptor fieldDesc, Object nodeValue) {
+    private Object buildFieldValue(FieldDescriptor fieldDesc, Object nodeValue, boolean isRepeated) {
         if (nodeValue == null) {
             return null;
         }
@@ -266,7 +268,9 @@ public class PbSourceData extends AbstractSourceData {
             case BYTE_STRING:
                 return ((ByteString) nodeValue).toByteArray();
             case MESSAGE: {
-                if (!fieldDesc.isRepeated()) {
+                if (!isRepeated) {
+                    return this.buildStructData(fieldDesc.getMessageType(), nodeValue);
+                } else if (PbNode.isMapDescriptor(fieldDesc.getMessageType())) {
                     return this.buildStructData(fieldDesc.getMessageType(), nodeValue);
                 }
                 List<DynamicMessage> valueList = (List<DynamicMessage>) nodeValue;
@@ -290,8 +294,8 @@ public class PbSourceData extends AbstractSourceData {
             List<DynamicMessage> subNodeValueList = (List<DynamicMessage>) nodeValue;
             Map<Object, Object> result = new HashMap<>();
             for (DynamicMessage subnodeValue : subNodeValueList) {
-                Object keyValue = buildFieldValue(keyField, subnodeValue.getField(keyField));
-                Object valueValue = buildFieldValue(valueField, subnodeValue.getField(valueField));
+                Object keyValue = buildFieldValue(keyField, subnodeValue.getField(keyField), false);
+                Object valueValue = buildFieldValue(valueField, subnodeValue.getField(valueField), false);
                 result.put(keyValue, valueValue);
             }
             return new GenericMapData(result);
@@ -306,7 +310,7 @@ public class PbSourceData extends AbstractSourceData {
                 result.setField(index++, null);
                 continue;
             }
-            Object fieldResult = this.buildFieldValue(fieldDesc, fieldValue);
+            Object fieldResult = this.buildFieldValue(fieldDesc, fieldValue, false);
             result.setField(index++, fieldResult);
         }
         return result;
