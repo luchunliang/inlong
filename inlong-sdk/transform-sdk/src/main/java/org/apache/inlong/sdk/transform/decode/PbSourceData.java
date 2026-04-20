@@ -21,13 +21,18 @@ import org.apache.inlong.sdk.transform.process.Context;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors;
+import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.DynamicMessage;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
+import org.apache.flink.table.data.GenericRowData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,7 +59,7 @@ public class PbSourceData extends AbstractSourceData {
 
     private List<DynamicMessage> childRoot;
 
-    private Charset srcCharset;
+    protected Charset srcCharset;
 
     /**
      * Constructor
@@ -105,8 +110,8 @@ public class PbSourceData extends AbstractSourceData {
      * @return
      */
     @Override
-    public String getField(int rowNum, String fieldName) {
-        String fieldValue = "";
+    public Object getField(int rowNum, String fieldName) {
+        Object fieldValue = "";
         try {
             if (isContextField(fieldName)) {
                 return getContextField(fieldName);
@@ -130,7 +135,7 @@ public class PbSourceData extends AbstractSourceData {
      * @param fieldName
      * @return
      */
-    private String getRootField(String srcFieldName) {
+    private Object getRootField(String srcFieldName) {
         List<PbNode> childNodes = this.columnNodeMap.get(srcFieldName);
         if (childNodes == null) {
             String fieldName = srcFieldName.substring(ROOT_KEY.length());
@@ -145,7 +150,7 @@ public class PbSourceData extends AbstractSourceData {
             return "";
         }
         // parse other node
-        String fieldValue = this.getNodeValue(childNodes, root);
+        Object fieldValue = this.getNodeValue(childNodes, root);
         return fieldValue;
     }
 
@@ -155,7 +160,7 @@ public class PbSourceData extends AbstractSourceData {
      * @param srcFieldName
      * @return
      */
-    private String getChildField(int rowNum, String srcFieldName) {
+    private Object getChildField(int rowNum, String srcFieldName) {
         if (this.childRoot == null || this.childDesc == null) {
             return "";
         }
@@ -174,7 +179,7 @@ public class PbSourceData extends AbstractSourceData {
         }
         // parse other node
         DynamicMessage child = childRoot.get(rowNum);
-        String fieldValue = this.getNodeValue(childNodes, child);
+        Object fieldValue = this.getNodeValue(childNodes, child);
         return fieldValue;
     }
 
@@ -184,9 +189,8 @@ public class PbSourceData extends AbstractSourceData {
      * @param root
      * @return
      */
-    @SuppressWarnings("rawtypes")
-    private String getNodeValue(List<PbNode> childNodes, DynamicMessage root) {
-        String fieldValue = "";
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Object getNodeValue(List<PbNode> childNodes, DynamicMessage root) {
         DynamicMessage current = root;
         for (int i = 0; i < childNodes.size(); i++) {
             PbNode node = childNodes.get(i);
@@ -195,62 +199,116 @@ public class PbSourceData extends AbstractSourceData {
                 // error data
                 break;
             }
-            if (node.isLastNode()) {
-                switch (node.getFieldDesc().getJavaType()) {
-                    case STRING:
-                    case INT:
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                    case BOOLEAN:
-                        fieldValue = String.valueOf(nodeValue);
-                        break;
-                    case BYTE_STRING:
-                        ByteString byteString = (ByteString) nodeValue;
-                        fieldValue = new String(byteString.toByteArray(), srcCharset);
-                        break;
-                    case ENUM:
-                        fieldValue = String.valueOf(nodeValue);
-                        break;
-                    case MESSAGE:
-                        if (node.isArray()) {
-                            fieldValue = String.valueOf(((List) nodeValue).get(node.getArrayIndex()));
-                        } else if (node.isMap()) {
-                            List<DynamicMessage> nodeValueList = (List<DynamicMessage>) nodeValue;
-                            for (DynamicMessage subnodeValue : nodeValueList) {
-                                String keyValue = String.valueOf(subnodeValue.getField(node.getMapKeyDesc()));
-                                if (StringUtils.equals(keyValue, node.getMapKey())) {
-                                    fieldValue = String.valueOf(subnodeValue.getField(node.getMapValueDesc()));
-                                    break;
-                                }
-                            }
-                        } else {
-                            fieldValue = String.valueOf(nodeValue);
+            if (!node.isLastNode()) {
+                if (node.isArray()) {
+                    current = (DynamicMessage) ((List) nodeValue).get(node.getArrayIndex());
+                } else if (node.isMap()) {
+                    List<DynamicMessage> nodeValueList = (List<DynamicMessage>) nodeValue;
+                    DynamicMessage newCurrent = null;
+                    for (DynamicMessage subnodeValue : nodeValueList) {
+                        String keyValue = String.valueOf(subnodeValue.getField(node.getMapKeyDesc()));
+                        if (StringUtils.equals(keyValue, node.getMapKey())) {
+                            newCurrent = (DynamicMessage) subnodeValue.getField(node.getMapValueDesc());
+                            break;
                         }
-                        break;
+                    }
+                    if (newCurrent == null) {
+                        return null;
+                    }
+                    current = newCurrent;
+                } else {
+                    current = (DynamicMessage) nodeValue;
                 }
-                break;
+                continue;
             }
+            // last node
             if (node.isArray()) {
-                current = (DynamicMessage) ((List) nodeValue).get(node.getArrayIndex());
+                return buildFieldValue(node.getFieldDesc(), ((List) nodeValue).get(node.getArrayIndex()));
             } else if (node.isMap()) {
                 List<DynamicMessage> nodeValueList = (List<DynamicMessage>) nodeValue;
-                DynamicMessage newCurrent = null;
+                Object fieldValue = null;
                 for (DynamicMessage subnodeValue : nodeValueList) {
                     String keyValue = String.valueOf(subnodeValue.getField(node.getMapKeyDesc()));
                     if (StringUtils.equals(keyValue, node.getMapKey())) {
-                        newCurrent = (DynamicMessage) subnodeValue.getField(node.getMapValueDesc());
+                        fieldValue = subnodeValue.getField(node.getMapValueDesc());
                         break;
                     }
                 }
-                if (newCurrent == null) {
-                    return fieldValue;
+                return this.buildFieldValue(node.getFieldDesc(), fieldValue);
+            } else if (node.getFieldDesc().isRepeated()) {
+                List<Object> valueList = (List) nodeValue;
+                List<Object> result = new ArrayList<>(valueList.size());
+                for (Object value : valueList) {
+                    result.add(this.buildFieldValue(node.getFieldDesc(), value));
                 }
-                current = newCurrent;
+                return new GenericArrayData(result.toArray());
             } else {
-                current = (DynamicMessage) nodeValue;
+                return this.buildFieldValue(node.getFieldDesc(), nodeValue);
             }
         }
-        return fieldValue;
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object buildFieldValue(FieldDescriptor fieldDesc, Object nodeValue) {
+        if (nodeValue == null) {
+            return null;
+        }
+        switch (fieldDesc.getJavaType()) {
+            case STRING:
+            case INT:
+            case LONG:
+            case FLOAT:
+            case DOUBLE:
+            case BOOLEAN:
+            case ENUM:
+                return nodeValue;
+            case BYTE_STRING:
+                return ((ByteString) nodeValue).toByteArray();
+            case MESSAGE: {
+                if (!fieldDesc.isRepeated()) {
+                    return this.buildStructData(fieldDesc.getMessageType(), nodeValue);
+                }
+                List<DynamicMessage> valueList = (List<DynamicMessage>) nodeValue;
+                List<Object> result = new ArrayList<>(valueList.size());
+                for (DynamicMessage value : valueList) {
+                    result.add(this.buildStructData(fieldDesc.getMessageType(), value));
+                }
+                return new GenericArrayData(result.toArray());
+            }
+            default:
+                return String.valueOf(nodeValue);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Object buildStructData(Descriptors.Descriptor messageType, Object nodeValue) {
+        // map
+        if (PbNode.isMapDescriptor(messageType)) {
+            Descriptors.FieldDescriptor keyField = messageType.findFieldByNumber(1);
+            Descriptors.FieldDescriptor valueField = messageType.findFieldByNumber(2);
+            List<DynamicMessage> subNodeValueList = (List<DynamicMessage>) nodeValue;
+            Map<Object, Object> result = new HashMap<>();
+            for (DynamicMessage subnodeValue : subNodeValueList) {
+                Object keyValue = buildFieldValue(keyField, subnodeValue.getField(keyField));
+                Object valueValue = buildFieldValue(valueField, subnodeValue.getField(valueField));
+                result.put(keyValue, valueValue);
+            }
+            return new GenericMapData(result);
+        }
+        // struct
+        DynamicMessage msgObj = (DynamicMessage) nodeValue;
+        GenericRowData result = new GenericRowData(messageType.getFields().size());
+        int index = 0;
+        for (FieldDescriptor fieldDesc : messageType.getFields()) {
+            Object fieldValue = msgObj.getField(fieldDesc);
+            if (fieldValue == null) {
+                result.setField(index++, null);
+                continue;
+            }
+            Object fieldResult = this.buildFieldValue(fieldDesc, fieldValue);
+            result.setField(index++, fieldResult);
+        }
+        return result;
     }
 }

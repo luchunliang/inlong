@@ -70,7 +70,7 @@ public class ParquetSinkEncoder extends SinkEncoder<ByteArrayOutputStream> {
         Object[] rowsInfo = new Object[size];
         Arrays.fill(rowsInfo, "");
         for (int i = 0; i < size; i++) {
-            String fieldData = sinkData.getField(this.fields.get(i).getName());
+            String fieldData = formatFieldValue(sinkData.getField(this.fields.get(i).getName()));
             if (fieldData == null) {
                 continue;
             }

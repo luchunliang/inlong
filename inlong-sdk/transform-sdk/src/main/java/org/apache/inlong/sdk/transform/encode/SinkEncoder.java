@@ -44,4 +44,11 @@ public abstract class SinkEncoder<Output> {
     }
 
     public abstract Output encode(SinkData sinkData, Context context);
+
+    protected String formatFieldValue(Object fieldValue) {
+        if (fieldValue == null) {
+            return null;
+        }
+        return String.valueOf(fieldValue);
+    }
 }

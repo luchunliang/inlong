@@ -49,7 +49,7 @@ public class MapSinkEncoder extends SinkEncoder<Map<String, Object>> {
         Map<String, Object> esMap = new HashMap<>();
         for (FieldInfo fieldInfo : fields) {
             String fieldName = fieldInfo.getName();
-            String strValue = sinkData.getField(fieldName);
+            String strValue = formatFieldValue(sinkData.getField(fieldName));
             TypeConverter converter = converters.get(fieldName);
             if (converter == null) {
                 esMap.put(fieldName, strValue);
