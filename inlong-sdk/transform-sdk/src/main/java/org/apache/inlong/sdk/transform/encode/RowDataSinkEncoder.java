@@ -42,10 +42,9 @@ public class RowDataSinkEncoder extends SinkEncoder<RowData> {
     @Override
     public RowData encode(SinkData sinkData, Context context) {
         GenericRowData rowData = new GenericRowData(fieldToRowDataConverters.length);
-
         for (int i = 0; i < fields.size(); i++) {
             String fieldName = fields.get(i).getName();
-            String fieldValue = sinkData.getField(fieldName);
+            Object fieldValue = sinkData.getField(fieldName);
             rowData.setField(i, fieldToRowDataConverters[i].convert(fieldValue));
         }
 

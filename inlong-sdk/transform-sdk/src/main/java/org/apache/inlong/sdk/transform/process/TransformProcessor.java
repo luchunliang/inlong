@@ -227,7 +227,7 @@ public class TransformProcessor<I, O> {
                     if (fieldValue == null) {
                         sinkData.addField(fieldName, "");
                     } else {
-                        sinkData.addField(fieldName, fieldValue.toString());
+                        sinkData.addField(fieldName, fieldValue);
                     }
                 } catch (Throwable t) {
                     sinkData.addField(fieldName, "");

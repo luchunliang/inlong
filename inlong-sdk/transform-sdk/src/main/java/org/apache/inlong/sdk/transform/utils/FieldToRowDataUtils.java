@@ -22,6 +22,7 @@ import org.apache.inlong.sdk.transform.decode.TransformException;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.ArrayType;
@@ -39,6 +40,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,7 +74,6 @@ public class FieldToRowDataUtils {
         converterMap.put(LogicalTypeRoot.BIGINT, (obj) -> parseLong(obj));
         converterMap.put(LogicalTypeRoot.FLOAT, (obj) -> parseFloat(obj));
         converterMap.put(LogicalTypeRoot.DOUBLE, (obj) -> parseDouble(obj));
-        converterMap.put(LogicalTypeRoot.BINARY, (obj) -> parseBinary(obj));
         converterMap.put(LogicalTypeRoot.VARBINARY, (obj) -> parseBinary(obj));
         converterMap.put(LogicalTypeRoot.CHAR, (obj) -> parseVarchar(obj));
         converterMap.put(LogicalTypeRoot.VARCHAR, (obj) -> parseVarchar(obj));
@@ -82,6 +83,10 @@ public class FieldToRowDataUtils {
         converterMap.put(LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE, (obj) -> parseTimestampWithLocalTimeZone(obj));
         converterMap.put(LogicalTypeRoot.TIMESTAMP_WITH_TIME_ZONE, (obj) -> parseTimestampWithLocalTimeZone(obj));
         converterMap.put(LogicalTypeRoot.DECIMAL, (obj) -> parseDecimal(obj));
+        converterMap.put(LogicalTypeRoot.BINARY, (obj) -> parseBinary(obj));
+        converterMap.put(LogicalTypeRoot.ARRAY, (obj) -> parseArray(obj));
+        converterMap.put(LogicalTypeRoot.MAP, (obj) -> parseMap(obj));
+        converterMap.put(LogicalTypeRoot.ROW, (obj) -> parseRow(obj));
     }
 
     private static final ThreadLocal<Map<String, SimpleDateFormat>> formatLocal = new ThreadLocal<>();
@@ -122,8 +127,8 @@ public class FieldToRowDataUtils {
             case ARRAY:
                 return obj -> {
                     final Object[] array = (Object[]) obj;
-                    FieldToRowDataConverter elementConverter =
-                            createFieldRowConverter(((ArrayType) fieldType).getElementType());
+                    FieldToRowDataConverter elementConverter = createFieldRowConverter(
+                            ((ArrayType) fieldType).getElementType());
                     Object[] converted = Arrays.stream(array)
                             .map(elementConverter::convert)
                             .toArray();
@@ -131,10 +136,9 @@ public class FieldToRowDataUtils {
                 };
             case MAP:
                 return obj -> {
-                    FieldToRowDataConverter keyConverter =
-                            createFieldRowConverter(((MapType) fieldType).getKeyType());
-                    FieldToRowDataConverter valueConverter =
-                            createFieldRowConverter(((MapType) fieldType).getValueType());
+                    FieldToRowDataConverter keyConverter = createFieldRowConverter(((MapType) fieldType).getKeyType());
+                    FieldToRowDataConverter valueConverter = createFieldRowConverter(
+                            ((MapType) fieldType).getValueType());
                     Map map = (Map) obj;
                     Map<Object, Object> internalMap = new HashMap<>();
                     for (Object k : map.keySet()) {
@@ -153,7 +157,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseBoolean(Object obj) {
         try {
-            return Boolean.parseBoolean(obj.toString());
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof Boolean) {
+                return obj;
+            }
+            return Boolean.parseBoolean(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -164,7 +174,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseTinyint(Object obj) {
         try {
-            return Byte.parseByte(obj.toString());
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof Byte) {
+                return obj;
+            }
+            return Byte.parseByte(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -175,7 +191,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseSmallint(Object obj) {
         try {
-            return Short.parseShort(obj.toString());
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof Short) {
+                return obj;
+            }
+            return Short.parseShort(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -186,7 +208,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseInteger(Object obj) {
         try {
-            return Integer.parseInt(obj.toString());
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof Integer) {
+                return obj;
+            }
+            return Integer.parseInt(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -197,7 +225,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseLong(Object obj) {
         try {
-            return Long.parseLong(obj.toString());
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof Long) {
+                return obj;
+            }
+            return Long.parseLong(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -208,7 +242,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseFloat(Object obj) {
         try {
-            return Float.parseFloat(obj.toString());
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof Float) {
+                return obj;
+            }
+            return Float.parseFloat(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -219,18 +259,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseDouble(Object obj) {
         try {
-            return Double.parseDouble(obj.toString());
-        } catch (RuntimeException e) {
-            if (isIgnoreError()) {
+            if (obj == null) {
                 return null;
             }
-            throw e;
-        }
-    }
-
-    private static Object parseBinary(Object obj) {
-        try {
-            return obj.toString().getBytes();
+            if (obj instanceof Double) {
+                return obj;
+            }
+            return Double.parseDouble(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -241,7 +276,13 @@ public class FieldToRowDataUtils {
 
     private static Object parseVarchar(Object obj) {
         try {
-            return StringData.fromString((String) obj);
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof byte[]) {
+                return StringData.fromString(new String((byte[]) obj));
+            }
+            return StringData.fromString(String.valueOf(obj));
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;
@@ -258,7 +299,7 @@ public class FieldToRowDataUtils {
             if (obj instanceof Date) {
                 return ((Date) obj).toLocalDate().toEpochDay();
             }
-            String strObj = obj.toString();
+            String strObj = String.valueOf(obj);
             Date date = parseDateTime(strObj);
             return date.toLocalDate().toEpochDay();
         } catch (RuntimeException e) {
@@ -305,7 +346,7 @@ public class FieldToRowDataUtils {
             if (obj instanceof Time) {
                 return ((Time) obj).toLocalTime().toSecondOfDay() * 1000;
             }
-            String strObj = obj.toString();
+            String strObj = String.valueOf(obj);
             Date date = parseDateTime(strObj);
             return new Time(date.getTime()).toLocalTime().toSecondOfDay() * 1000;
         } catch (RuntimeException e) {
@@ -324,7 +365,7 @@ public class FieldToRowDataUtils {
             if (obj instanceof Timestamp) {
                 return TimestampData.fromTimestamp((Timestamp) obj);
             }
-            String strObj = obj.toString();
+            String strObj = String.valueOf(obj);
             Date date = parseDateTime(strObj);
             return TimestampData.fromTimestamp(new Timestamp(date.getTime()));
         } catch (RuntimeException e) {
@@ -346,11 +387,89 @@ public class FieldToRowDataUtils {
                         DecimalType.DEFAULT_PRECISION,
                         DecimalType.DEFAULT_SCALE);
             }
-            String strObj = obj.toString();
+            String strObj = String.valueOf(obj);
             return DecimalData.fromBigDecimal(
                     new BigDecimal(strObj),
                     DecimalType.DEFAULT_PRECISION,
                     DecimalType.DEFAULT_SCALE);
+        } catch (RuntimeException e) {
+            if (isIgnoreError()) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    private static Object parseBinary(Object obj) {
+        try {
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof byte[]) {
+                return obj;
+            }
+            return String.valueOf(obj).getBytes();
+        } catch (RuntimeException e) {
+            if (isIgnoreError()) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    private static Object parseArray(Object obj) {
+        try {
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof GenericArrayData) {
+                return obj;
+            }
+            if (obj instanceof List<?>) {
+                return new GenericArrayData(((List<?>) obj).toArray());
+            }
+            return new GenericArrayData(new Object[]{obj});
+        } catch (RuntimeException e) {
+            if (isIgnoreError()) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    private static Object parseMap(Object obj) {
+        try {
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof GenericMapData) {
+                return obj;
+            }
+            if (obj instanceof Map<?, ?>) {
+                return new GenericMapData((Map<?, ?>) obj);
+            }
+            Map<Object, Object> mapObj = new HashMap<>();
+            mapObj.put(obj, obj);
+            return new GenericMapData(mapObj);
+        } catch (RuntimeException e) {
+            if (isIgnoreError()) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    private static Object parseRow(Object obj) {
+        try {
+            if (obj == null) {
+                return null;
+            }
+            if (obj instanceof GenericRowData) {
+                return obj;
+            }
+            GenericRowData result = new GenericRowData(1);
+            result.setField(0, obj);
+            return result;
         } catch (RuntimeException e) {
             if (isIgnoreError()) {
                 return null;

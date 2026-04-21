@@ -26,13 +26,12 @@ import java.util.Map;
 
 /**
  * DefaultSinkData
- * 
  */
 @Data
 public class DefaultSinkData implements SinkData {
 
     private List<String> keyList = new ArrayList<>();
-    private Map<String, String> currentRow = new HashMap<>();
+    private Map<String, Object> currentRow = new HashMap<>();
 
     /**
      * addField
@@ -40,7 +39,7 @@ public class DefaultSinkData implements SinkData {
      * @param fieldValue
      */
     @Override
-    public void addField(String fieldName, String fieldValue) {
+    public void addField(String fieldName, Object fieldValue) {
         this.keyList.add(fieldName);
         this.currentRow.put(fieldName, fieldValue);
     }
@@ -51,7 +50,7 @@ public class DefaultSinkData implements SinkData {
      * @return
      */
     @Override
-    public String getField(String fieldName) {
+    public Object getField(String fieldName) {
         return this.currentRow.getOrDefault(fieldName, "");
     }
 

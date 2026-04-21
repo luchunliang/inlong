@@ -27,6 +27,7 @@ import org.apache.inlong.sdk.transform.process.parser.ValueParser;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
+import org.apache.flink.table.data.StringData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +65,16 @@ public class ConcatFunction implements ValueParser {
     public Object parse(SourceData sourceData, int rowIndex, Context context) {
         StringBuilder builder = new StringBuilder();
         for (ValueParser node : nodeList) {
-            builder.append(node.parse(sourceData, rowIndex, context));
+            Object itemValue = node.parse(sourceData, rowIndex, context);
+            if (itemValue == null) {
+                continue;
+            } else if (itemValue instanceof byte[]) {
+                builder.append(new String((byte[]) itemValue));
+            } else if (itemValue instanceof StringData) {
+                builder.append(((StringData) itemValue).toString());
+            } else {
+                builder.append(String.valueOf(itemValue));
+            }
         }
         return builder.toString();
     }
