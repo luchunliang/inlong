@@ -351,7 +351,7 @@ public class PbSourceData extends AbstractSourceData {
         }
         // error config
         if (childNodes.size() == 0) {
-            return "";
+            return null;
         }
         // parse other node
         Object fieldValue = this.findNodeValue(childNodes, root);
