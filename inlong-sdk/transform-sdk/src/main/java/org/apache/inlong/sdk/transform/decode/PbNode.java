@@ -108,8 +108,8 @@ public class PbNode {
             // primitive
             this.isPrimitiveType = true;
         } catch (RuntimeException t) {
-            LOG.error("Fail to PbNode,error:{},fullName:{},nodePath:{},isLastNode:{}", parentDesc.getName(),
-                    t.getMessage(), nodeString, isLastNode, t);
+            LOG.error("Fail to PbNode,error:{},fullName:{},nodePath:{},isLastNode:{}",
+                    t.getMessage(), parentDesc.getName(), nodeString, isLastNode, t);
             throw t;
         }
     }

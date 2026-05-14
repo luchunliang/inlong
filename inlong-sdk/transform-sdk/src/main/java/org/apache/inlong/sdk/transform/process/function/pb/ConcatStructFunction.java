@@ -34,13 +34,17 @@ import java.util.List;
 /**
  * ConcatStructFunction  ->  concat_struct(field1, field2, field3...)
  * description:
- * - Return NULL if any parameter is NULL
- * - Return the GenericRowData object from protobuf source data based on path
+ * - Always returns a GenericRowData whose arity equals the number of input parameters.
+ * - If any parameter evaluates to NULL, the corresponding position in the returned
+ *   GenericRowData is set to NULL while the other positions are populated normally.
+ * - Each field value is taken from the protobuf source data based on its path.
  */
 @TransformFunction(type = FunctionConstant.PB_TYPE, names = {
         "concat_struct"}, parameter = "(field1,field2,field3...)", descriptions = {
-                "- Return \"\" if any parameter is NULL;",
-                "- Return the GenericRowData object from protobuf source data based on 'path'."
+                "- Always returns a GenericRowData whose arity equals the number of input parameters;",
+                "- If any parameter is NULL, the corresponding position in the returned "
+                        + "GenericRowData is set to NULL while the other positions are populated normally;",
+                "- Each field value is taken from the protobuf source data based on its 'path'."
         }, examples = {
                 "concat_struct($root.name,$root.age) = +I(\"Alice\",11)"
         })

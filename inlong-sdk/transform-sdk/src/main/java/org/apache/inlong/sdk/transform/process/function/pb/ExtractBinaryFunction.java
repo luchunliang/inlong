@@ -27,25 +27,37 @@ import org.apache.inlong.sdk.transform.process.operator.OperatorTools;
 import org.apache.inlong.sdk.transform.process.parser.ColumnParser;
 import org.apache.inlong.sdk.transform.process.parser.ValueParser;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.table.data.GenericArrayData;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * ExtractBinaryFunction  ->  extract_binary(path)
  * description:
- * - Return NULL if any parameter is NULL
- * - Return the binary object from protobuf source data based on path
+ * - Only works on protobuf source data; returns NULL if the source is not a PbSourceData.
+ * - Returns NULL if 'path' is missing/invalid, or the path cannot be resolved to a value
+ *   in the protobuf message.
+ * - For primitive / struct / map nodes and array nodes with an explicit array index,
+ *   returns the matched value serialized as a {@code byte[]}.
+ * - For array nodes without an array index, returns a {@link GenericArrayData} whose
+ *   elements are the {@code byte[]} representation of each list value.
  */
 @TransformFunction(type = FunctionConstant.PB_TYPE, names = {
         "extract_binary"}, parameter = "(path)", descriptions = {
-                "- Return \"\" if any parameter is NULL;",
-                "- Return the binary object from protobuf source data based on 'path'."
+                "- Only works on protobuf source data; returns NULL if the source is not a PbSourceData;",
+                "- Returns NULL if 'path' is missing/invalid, or the path cannot be resolved "
+                        + "to a value in the protobuf message;",
+                "- For primitive / struct / map nodes and array nodes with an explicit array index, "
+                        + "returns the matched value serialized as a byte[];",
+                "- For array nodes without an array index, returns a GenericArrayData whose elements "
+                        + "are the byte[] representation of each list value."
         }, examples = {
                 "extract_binary($root.feature) = [62,111]"
         })
@@ -129,6 +141,9 @@ public class ExtractBinaryFunction implements ValueParser {
         if (currentNode instanceof MessageLite) {
             return ((MessageLite) currentNode).toByteArray();
         }
-        return String.valueOf(currentNode).getBytes();
+        if (currentNode instanceof ByteString) {
+            return ((ByteString) currentNode).toByteArray();
+        }
+        return String.valueOf(currentNode).getBytes(StandardCharsets.ISO_8859_1);
     }
 }

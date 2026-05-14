@@ -39,15 +39,26 @@ import java.util.List;
 /**
  * ExtractStructFunction  ->  extract_struct(path, field1, field2, field3...)
  * description:
- * - Return NULL if any parameter is NULL
- * - Return the GenericRowData object from protobuf source data based on path
+ * - Only works on protobuf source data; returns NULL if the source is not a PbSourceData.
+ * - Returns NULL if 'path' is missing/invalid, or the path cannot be resolved to a
+ *   DynamicMessage in the protobuf source data.
+ * - Otherwise, returns a GenericRowData whose arity equals the number of declared
+ *   fields (field1, field2, ...). For each declared field:
+ *     - if the field can be resolved on the located message, the corresponding
+ *       position is filled with the resolved value;
+ *     - otherwise (field not found, or the parameter is not a column reference),
+ *       the corresponding position is set to NULL.
  */
 @TransformFunction(type = FunctionConstant.PB_TYPE, names = {
         "extract_struct"}, parameter = "(path, field1,field2,field3...)", descriptions = {
-                "- Return \"\" if any parameter is NULL;",
-                "- Return the GenericRowData object from protobuf source data based on 'path'."
+                "- Only works on protobuf source data; returns NULL if the source is not a PbSourceData;",
+                "- Returns NULL if 'path' is missing/invalid, or the path cannot be resolved "
+                        + "to a DynamicMessage in the protobuf source data;",
+                "- Otherwise, returns a GenericRowData whose arity equals the number of declared fields. "
+                        + "Each position is filled with the resolved field value, or NULL if the field "
+                        + "cannot be resolved on the located message."
         }, examples = {
-                "extract_struct($root.persion,name,age) = +I(\"Alice\",11)"
+                "extract_struct($root.person,name,age) = +I(\"Alice\",11)"
         })
 public class ExtractStructFunction implements ValueParser {
 
