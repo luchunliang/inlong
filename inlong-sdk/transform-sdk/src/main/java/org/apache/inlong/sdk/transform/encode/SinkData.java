@@ -25,9 +25,9 @@ import java.util.List;
  */
 public interface SinkData {
 
-    void addField(String fieldName, String fieldValue);
+    void addField(String fieldName, Object fieldValue);
 
-    String getField(String fieldName);
+    Object getField(String fieldName);
 
     List<String> keyList();
 }

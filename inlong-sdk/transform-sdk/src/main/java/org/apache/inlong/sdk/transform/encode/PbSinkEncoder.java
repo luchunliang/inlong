@@ -58,7 +58,7 @@ public class PbSinkEncoder extends SinkEncoder<byte[]> {
             for (String key : sinkData.keyList()) {
                 Descriptors.FieldDescriptor fieldDescriptor = dynamicDescriptor.findFieldByName(key);
                 if (fieldDescriptor != null) {
-                    String fieldValue = sinkData.getField(key);
+                    String fieldValue = formatFieldValue(sinkData.getField(key));
                     if (fieldValue != null) {
                         Object value = convertValue(fieldDescriptor, fieldValue);
                         dynamicBuilder.setField(fieldDescriptor, value);

@@ -63,7 +63,7 @@ public class CsvSinkEncoder extends SinkEncoder<String> {
                 sinkData.keyList().forEach(k -> builder.append(sinkData.getField(k)).append(delimiter));
             } else {
                 for (String fieldName : sinkData.keyList()) {
-                    String fieldValue = sinkData.getField(fieldName);
+                    String fieldValue = formatFieldValue(sinkData.getField(fieldName));
                     if (StringUtils.equals(fieldName, ALL_SOURCE_FIELD_SIGN)) {
                         builder.append(fieldValue);
                     } else {
@@ -78,7 +78,7 @@ public class CsvSinkEncoder extends SinkEncoder<String> {
             } else {
                 for (FieldInfo field : fields) {
                     String fieldName = field.getName();
-                    String fieldValue = sinkData.getField(fieldName);
+                    String fieldValue = formatFieldValue(sinkData.getField(fieldName));
                     EscapeUtils.escapeContent(builder, delimiter, escapeChar, fieldValue);
                     builder.append(delimiter);
                 }
