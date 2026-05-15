@@ -28,6 +28,8 @@ import org.apache.inlong.sdk.transform.process.parser.ColumnParser;
 import org.apache.inlong.sdk.transform.process.parser.ValueParser;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.MessageLite;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
@@ -65,6 +67,8 @@ public class ExtractBinaryFunction implements ValueParser {
 
     private final ValueParser pathParser;
     private String path;
+    private Descriptor parentDesc;
+    private DynamicMessage parentRoot;
 
     public ExtractBinaryFunction(Function expr) {
         List<Expression> expressions = expr.getParameters().getExpressions();
@@ -86,6 +90,7 @@ public class ExtractBinaryFunction implements ValueParser {
         PbSourceData pbData = (PbSourceData) sourceData;
         // node list
         List<PbNode> childNodes = null;
+        boolean isParentData = false;
         if (StringUtils.startsWith(path, PbSourceData.ROOT_KEY)) {
             childNodes = pbData.parseStructNodeList(path, pbData.getRootDesc());
         } else if (StringUtils.startsWith(path, PbSourceData.CHILD_KEY)) {
@@ -93,12 +98,20 @@ public class ExtractBinaryFunction implements ValueParser {
                 return null;
             }
             childNodes = pbData.parseStructNodeList(path, pbData.getChildDesc());
+        } else if (parentDesc != null) {
+            childNodes = pbData.parseStructNodeList(path, parentDesc);
+            isParentData = true;
         }
         if (childNodes == null || childNodes.size() <= 0) {
             return null;
         }
         // value
-        Object currentNode = pbData.findFieldNode(rowIndex, path);
+        Object currentNode = null;
+        if (isParentData) {
+            currentNode = pbData.findNodeValue(childNodes, parentRoot);
+        } else {
+            currentNode = pbData.findFieldNode(rowIndex, path);
+        }
         if (currentNode == null) {
             return null;
         }
@@ -146,4 +159,37 @@ public class ExtractBinaryFunction implements ValueParser {
         }
         return String.valueOf(currentNode).getBytes(StandardCharsets.ISO_8859_1);
     }
+
+    /**
+     * get parentDesc
+     * @return the parentDesc
+     */
+    public Descriptor getParentDesc() {
+        return parentDesc;
+    }
+
+    /**
+     * set parentDesc
+     * @param parentDesc the parentDesc to set
+     */
+    public void setParentDesc(Descriptor parentDesc) {
+        this.parentDesc = parentDesc;
+    }
+
+    /**
+     * get parentRoot
+     * @return the parentRoot
+     */
+    public DynamicMessage getParentRoot() {
+        return parentRoot;
+    }
+
+    /**
+     * set parentRoot
+     * @param parentRoot the parentRoot to set
+     */
+    public void setParentRoot(DynamicMessage parentRoot) {
+        this.parentRoot = parentRoot;
+    }
+
 }

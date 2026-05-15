@@ -28,9 +28,11 @@ import org.apache.inlong.sdk.transform.process.parser.ColumnParser;
 import org.apache.inlong.sdk.transform.process.parser.ValueParser;
 
 import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
 import com.google.protobuf.DynamicMessage;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
+import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericRowData;
 
 import java.util.ArrayList;
@@ -87,11 +89,50 @@ public class ExtractStructFunction implements ValueParser {
             return null;
         }
         PbSourceData pbData = (PbSourceData) sourceData;
-        Object currentNode = pbData.findFieldNode(rowIndex, path);
-        if (currentNode == null || !(currentNode instanceof DynamicMessage)) {
+        // parse path
+        List<PbNode> pathChildNodes = pbData.parseStructNodeList(path, pbData.getRootDesc());
+        if (pathChildNodes == null || pathChildNodes.size() == 0) {
             return null;
         }
-        DynamicMessage currentValue = (DynamicMessage) currentNode;
+        // check message type
+        PbNode lastNode = pathChildNodes.get(pathChildNodes.size() - 1);
+        if (!lastNode.getFieldDesc().getJavaType().equals(JavaType.MESSAGE)) {
+            return null;
+        }
+        // get data
+        Object currentNode = pbData.findFieldNode(rowIndex, path);
+        if (currentNode == null) {
+            return null;
+        }
+        // array node
+        if (lastNode.isArrayType() && !lastNode.isHasArrayIndex()) {
+            if (!(currentNode instanceof List)) {
+                return null;
+            }
+            List<?> currentNodeList = (List<?>) currentNode;
+            List<GenericRowData> valueResult = new ArrayList<>(currentNodeList.size());
+            for (Object nodeValue : currentNodeList) {
+                if (!(nodeValue instanceof DynamicMessage)) {
+                    continue;
+                }
+                DynamicMessage currentValue = (DynamicMessage) nodeValue;
+                GenericRowData item = buildStruct(pbData, rowIndex, context, currentValue);
+                valueResult.add(item);
+            }
+            GenericArrayData result = new GenericArrayData(valueResult.toArray());
+            return result;
+        } else {
+            // struct node
+            if (!(currentNode instanceof DynamicMessage)) {
+                return null;
+            }
+            DynamicMessage currentValue = (DynamicMessage) currentNode;
+            return buildStruct(pbData, rowIndex, context, currentValue);
+        }
+    }
+
+    private GenericRowData buildStruct(PbSourceData pbData, int rowIndex, Context context,
+            DynamicMessage currentValue) {
         Descriptor currentDesc = currentValue.getDescriptorForType();
         GenericRowData result = new GenericRowData(fieldParsers.size());
         int index = 0;
@@ -105,6 +146,12 @@ public class ExtractStructFunction implements ValueParser {
                     continue;
                 }
                 Object fieldValue = pbData.findNodeValue(childNodes, currentValue);
+                result.setField(index++, fieldValue);
+            } else if (parser instanceof ExtractBinaryFunction) {
+                ExtractBinaryFunction extractBinaryFunc = (ExtractBinaryFunction) parser;
+                extractBinaryFunc.setParentRoot(currentValue);
+                extractBinaryFunc.setParentDesc(currentDesc);
+                Object fieldValue = extractBinaryFunc.parse(pbData, rowIndex, context);
                 result.setField(index++, fieldValue);
             } else {
                 result.setField(index++, null);
