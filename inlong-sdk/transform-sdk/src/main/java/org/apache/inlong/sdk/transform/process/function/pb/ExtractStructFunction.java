@@ -146,7 +146,24 @@ public class ExtractStructFunction implements ValueParser {
                     continue;
                 }
                 Object fieldValue = pbData.findNodeValue(childNodes, currentValue);
-                result.setField(index++, fieldValue);
+                PbNode lastNode = childNodes.get(childNodes.size() - 1);
+                if (lastNode.isArrayType() && !lastNode.isHasArrayIndex()) {
+                    if (!(fieldValue instanceof List)) {
+                        result.setField(index++, null);
+                        continue;
+                    }
+                    List<?> valueList = (List<?>) fieldValue;
+                    List<Object> valueResult = new ArrayList<>(valueList.size());
+                    for (Object value : valueList) {
+                        Object transformedValue = pbData.buildFieldValue(lastNode.getFieldDesc(), value);
+                        valueResult.add(transformedValue);
+                    }
+                    GenericArrayData arrayItem = new GenericArrayData(valueResult.toArray());
+                    result.setField(index++, arrayItem);
+                } else {
+                    Object transformedValue = pbData.buildFieldValue(lastNode.getFieldDesc(), fieldValue);
+                    result.setField(index++, transformedValue);
+                }
             } else if (parser instanceof ExtractBinaryFunction) {
                 ExtractBinaryFunction extractBinaryFunc = (ExtractBinaryFunction) parser;
                 extractBinaryFunc.setParentRoot(currentValue);

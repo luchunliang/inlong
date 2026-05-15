@@ -171,7 +171,7 @@ public class PbSourceData extends AbstractSourceData {
         }
     }
 
-    private Object buildFieldValue(FieldDescriptor fieldDesc, Object nodeValue) {
+    public Object buildFieldValue(FieldDescriptor fieldDesc, Object nodeValue) {
         if (fieldDesc == null || nodeValue == null) {
             return null;
         }
@@ -190,7 +190,11 @@ public class PbSourceData extends AbstractSourceData {
                 }
                 return null;
             case BYTE_STRING:
-                return ((ByteString) nodeValue).toByteArray();
+                if (nodeValue instanceof ByteString) {
+                    return ((ByteString) nodeValue).toByteArray();
+                } else {
+                    return nodeValue;
+                }
             case MESSAGE:
                 return this.buildStructData(fieldDesc.getMessageType(), nodeValue);
             default:
