@@ -22,6 +22,7 @@ import org.apache.inlong.sdk.transform.process.Context;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
 import com.google.protobuf.DynamicMessage;
@@ -181,8 +182,13 @@ public class PbSourceData extends AbstractSourceData {
             case FLOAT:
             case DOUBLE:
             case BOOLEAN:
-            case ENUM:
                 return nodeValue;
+            case ENUM:
+                if (nodeValue instanceof EnumValueDescriptor) {
+                    EnumValueDescriptor enumDesc = (EnumValueDescriptor) nodeValue;
+                    return enumDesc.getIndex();
+                }
+                return null;
             case BYTE_STRING:
                 return ((ByteString) nodeValue).toByteArray();
             case MESSAGE:
