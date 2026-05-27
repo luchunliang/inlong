@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"net"
 	"sync"
 	"time"
 
@@ -213,7 +214,12 @@ func (c *client) initWorkers() error {
 }
 
 func (c *client) Dial(addr string, ctx any) (gnet.Conn, error) {
-	return c.netClient.DialContext("tcp", addr, ctx)
+	// Use net.DialTimeout to bound the TCP handshake duration
+	raw, err := net.DialTimeout("tcp", addr, c.options.ConnTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return c.netClient.EnrollContext(raw, ctx)
 }
 
 func (c *client) Send(ctx context.Context, msg Message) error {
@@ -250,12 +256,15 @@ func (c *client) SendAsync(ctx context.Context, msg Message, cb Callback) {
 }
 
 func (c *client) getWorker() (*worker, error) {
-	index := c.curWorkerIndex.Load()
-	w := c.workers[index%uint64(len(c.workers))]
+	workerNum := uint64(len(c.workers))
+	start := c.curWorkerIndex.Load()
 	c.curWorkerIndex.Add(1)
 
-	if w.available() {
-		return w, nil
+	for i := uint64(0); i < workerNum; i++ {
+		w := c.workers[(start+i)%workerNum]
+		if w.available() {
+			return w, nil
+		}
 	}
 
 	c.metrics.incError(workerBusy.strCode)
