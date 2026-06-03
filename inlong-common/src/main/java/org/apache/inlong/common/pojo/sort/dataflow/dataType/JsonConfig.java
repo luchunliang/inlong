@@ -15,16 +15,17 @@
  * limitations under the License.
  */
 
-package org.apache.inlong.common.constant;
+package org.apache.inlong.common.pojo.sort.dataflow.dataType;
 
-public class DeserializationType {
+import lombok.Data;
 
-    public static final String INLONG_MSG = "inlong_msg";
-    public static final String INLONG_MSG_PB = "inlong_msg_pb";
-    public static final String RAW = "raw";
-    public static final String CSV = "csv";
-    public static final String KV = "kv";
-    public static final String PB = "pb";
-    public static final String JSON = "json";
+@Data
+public class JsonConfig implements DataTypeConfig {
 
+    /**
+     * serialVersionUID long
+     */
+    private static final long serialVersionUID = 1513069555859662342L;
+
+    private String rowsNodePath;
 }
