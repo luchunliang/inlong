@@ -18,15 +18,22 @@
 package org.apache.inlong.sort.standalone.sink.pulsar;
 
 import org.apache.inlong.sdk.commons.protocol.EventConstants;
+import org.apache.inlong.sdk.transform.process.TransformProcessor;
 import org.apache.inlong.sort.standalone.channel.ProfileEvent;
 import org.apache.inlong.sort.standalone.utils.InlongLoggerFactory;
 
+import com.google.gson.Gson;
 import org.slf4j.Logger;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 
@@ -40,25 +47,57 @@ public class DefaultEvent2PulsarRecordHandler implements IEvent2PulsarRecordHand
     protected final ByteArrayOutputStream outMsg = new ByteArrayOutputStream();
     protected final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
     protected final Date currentDate = new Date();
+    protected final Gson gson = new Gson();
 
     /**
      * parse
-     * 
-     * @param  context
-     * @param  event
-     * @return             byte array
-     * @throws IOException
+     *
+     * @param  context     pulsar federation sink context
+     * @param  event       raw profile event
+     * @param  idConfig    id config resolved from event uid
+     * @return             a list of message payload byte arrays
+     * @throws IOException on any IO error
      */
     @Override
-    public byte[] parse(PulsarFederationSinkContext context, ProfileEvent event)
+    public List<byte[]> parse(PulsarFederationSinkContext context, ProfileEvent event, PulsarIdConfig idConfig)
             throws IOException {
-        String uid = event.getUid();
-        PulsarIdConfig idConfig = context.getIdConfig(uid);
-        if (idConfig == null) {
-            context.addSendResultMetric(event, context.getTaskName(), false, System.currentTimeMillis());
-            LOG.error("Can not find the id config:{}", uid);
-            return null;
+        TransformProcessor<String, ?> processor = context.getTransformProcessor(idConfig.getDataFlowId());
+        if (processor != null) {
+            return this.parseByTransform(context, event, processor);
+        } else {
+            byte[] record = this.parseByBytes(event, idConfig);
+            return Arrays.asList(record);
         }
+    }
+
+    public List<byte[]> parseByTransform(PulsarFederationSinkContext context, ProfileEvent event,
+            TransformProcessor<String, ?> processor) throws IOException {
+        // extParams
+        Map<String, Object> extParams = new ConcurrentHashMap<>();
+        extParams.putAll(context.getSinkContext().getParameters());
+        event.getHeaders().forEach((k, v) -> extParams.put(k, v));
+        // transform
+        List<?> results = processor.transformForBytes(event.getBody(), extParams);
+        if (results == null) {
+            return new ArrayList<>();
+        }
+        // build
+        List<byte[]> records = new ArrayList<>(results.size());
+        for (Object result : results) {
+            byte[] msgContent;
+            if (result instanceof String) {
+                msgContent = result.toString().getBytes();
+            } else if (result instanceof byte[]) {
+                msgContent = (byte[]) result;
+            } else {
+                msgContent = gson.toJson(result).getBytes();
+            }
+            records.add(msgContent);
+        }
+        return records;
+    }
+
+    public byte[] parseByBytes(ProfileEvent event, PulsarIdConfig idConfig) throws IOException {
         String delimiter = idConfig.getSeparator();
         byte separator = (byte) delimiter.charAt(0);
         outMsg.reset();
@@ -80,8 +119,7 @@ public class DefaultEvent2PulsarRecordHandler implements IEvent2PulsarRecordHand
                 break;
         }
         outMsg.write(event.getBody());
-        byte[] msgContent = outMsg.toByteArray();
-        return msgContent;
+        return outMsg.toByteArray();
     }
 
     /**

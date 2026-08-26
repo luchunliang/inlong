@@ -20,6 +20,7 @@ package org.apache.inlong.sort.standalone.sink.pulsar;
 import org.apache.inlong.sort.standalone.channel.ProfileEvent;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 
@@ -28,12 +29,14 @@ import java.io.IOException;
 public interface IEvent2PulsarRecordHandler {
 
     /**
-     * parse
-     * 
-     * @param  context
-     * @param  event
-     * @return             ProducerRecord
-     * @throws IOException
+     * parse the event into one or more pulsar message payloads.
+     *
+     * @param  context     pulsar federation sink context
+     * @param  event       raw profile event
+     * @param  idConfig    id config resolved from event uid
+     * @return             a list of message payload byte arrays; empty/null means filtered
+     * @throws IOException on any IO error
      */
-    byte[] parse(PulsarFederationSinkContext context, ProfileEvent event) throws IOException;
+    List<byte[]> parse(PulsarFederationSinkContext context, ProfileEvent event, PulsarIdConfig idConfig)
+            throws IOException;
 }

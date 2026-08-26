@@ -20,6 +20,7 @@ package org.apache.inlong.sort.standalone.sink.cls;
 import org.apache.inlong.sort.standalone.channel.ProfileEvent;
 import org.apache.inlong.sort.standalone.utils.InlongLoggerFactory;
 
+import com.google.gson.Gson;
 import com.tencentcloudapi.cls.producer.Callback;
 import com.tencentcloudapi.cls.producer.Result;
 import com.tencentcloudapi.cls.producer.common.Attempt;
@@ -40,6 +41,7 @@ public class ClsCallback implements Callback {
     private final ClsSinkContext context;
     private final ProfileEvent event;
     private final String topicId;
+    private Gson gson = new Gson();
 
     /**
      * Constructor.
@@ -80,6 +82,8 @@ public class ClsCallback implements Callback {
      * @param result Send result.
      */
     private void onFailed(Result result) {
+        LOG.error("onFail,groupId:{},data:{},result:{}", event.getInlongGroupId(), new String(event.getBody()),
+                gson.toJson(result));
         if (isRetryable(result.getReservedAttempts())) {
             tx.rollback();
             tx.close();
