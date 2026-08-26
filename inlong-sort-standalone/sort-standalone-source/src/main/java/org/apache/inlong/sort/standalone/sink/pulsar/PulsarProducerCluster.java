@@ -43,11 +43,14 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -276,35 +279,46 @@ public class PulsarProducerCluster implements LifecycleAware {
             throw new IllegalStateException();
         }
 
-        // sendAsync
-        byte[] sendBytes = this.handler.parse(sinkContext, profileEvent);
+        // resolve idConfig and parse into one or more message payloads
+        String uid = profileEvent.getUid();
+        PulsarIdConfig idConfig = sinkContext.getIdConfig(uid);
+        List<byte[]> records = this.handler.parse(sinkContext, profileEvent, idConfig);
         // check
-        if (sendBytes == null) {
+        if (records == null || records.isEmpty()) {
             tx.commit();
             profileEvent.ack();
             tx.close();
             return true;
         }
         long sendTime = System.currentTimeMillis();
-        CompletableFuture<MessageId> future = producer.newMessage()
-                .properties(headers)
-                .value(sendBytes)
-                .sendAsync();
-        // callback
-        future.whenCompleteAsync((msgId, ex) -> {
-            if (ex != null) {
-                LOG.error("Send fail:{}", ex.getMessage());
-                LOG.error(ex.getMessage(), ex);
-                tx.rollback();
-                tx.close();
-                sinkContext.addSendResultMetric(profileEvent, topic, false, sendTime);
-            } else {
-                tx.commit();
-                tx.close();
-                sinkContext.addSendResultMetric(profileEvent, topic, true, sendTime);
-                profileEvent.ack();
-            }
-        });
+        // send all records, commit tx after all completed
+        final int total = records.size();
+        final AtomicInteger remaining = new AtomicInteger(total);
+        final AtomicBoolean failed = new AtomicBoolean(false);
+        for (byte[] sendBytes : records) {
+            CompletableFuture<MessageId> future = producer.newMessage()
+                    .properties(headers)
+                    .value(sendBytes)
+                    .sendAsync();
+            future.whenCompleteAsync((msgId, ex) -> {
+                if (ex != null) {
+                    LOG.error("Send fail, uid:{}, topic:{}, error:{}", uid, topic, ex.getMessage(), ex);
+                    failed.compareAndSet(false, true);
+                    sinkContext.addSendResultMetric(profileEvent, topic, false, sendTime);
+                } else {
+                    sinkContext.addSendResultMetric(profileEvent, topic, true, sendTime);
+                }
+                if (remaining.decrementAndGet() == 0) {
+                    if (failed.get()) {
+                        tx.rollback();
+                    } else {
+                        tx.commit();
+                        profileEvent.ack();
+                    }
+                    tx.close();
+                }
+            });
+        }
         return true;
     }
 

@@ -55,6 +55,7 @@ public class PulsarIdConfig extends IdConfig {
     private String topic;
     private DataTypeEnum dataType;
     private DataFlowConfig dataFlowConfig;
+    private String dataFlowId;
 
     public PulsarIdConfig(Map<String, String> idParam) {
         this.inlongGroupId = idParam.get(Constants.INLONG_GROUP_ID);
@@ -64,6 +65,7 @@ public class PulsarIdConfig extends IdConfig {
         this.topic = idParam.getOrDefault(Constants.TOPIC, uid);
         this.dataType = DataTypeEnum
                 .convert(idParam.getOrDefault(PulsarIdConfig.KEY_DATA_TYPE, DataTypeEnum.TEXT.getType()));
+        this.dataFlowId = this.uid;
     }
 
     public static PulsarIdConfig create(DataFlowConfig dataFlowConfig) {
@@ -97,6 +99,7 @@ public class PulsarIdConfig extends IdConfig {
                 .dataType(dataType)
                 .separator(separator)
                 .dataFlowConfig(dataFlowConfig)
+                .dataFlowId(dataFlowConfig.getDataflowId())
                 .build();
 
     }
